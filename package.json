@@ -1,0 +1,26 @@
+{
+  "name": "mendoza-hall",
+  "private": true,
+  "type": "module",
+  "description": "Mendoza Hall — Cloudflare Pages and Neon",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "npm run build && wrangler pages dev public --ip 0.0.0.0 --port 8788",
+    "test": "node --test",
+    "check": "npm test && npm run build && wrangler pages functions build --outdir .worker-check",
+    "test:browser": "playwright test"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.2",
+    "three": "0.128.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.17",
+    "@playwright/test": "^1.56.0",
+    "esbuild": "^0.28.2",
+    "wrangler": "^4.0.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

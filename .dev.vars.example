@@ -1,0 +1,5 @@
+# Copy to .dev.vars for local development ONLY. Never commit .dev.vars.
+DATABASE_URL="postgresql://USER:PASSWORD@HOST/DATABASE?sslmode=require"
+ADMIN_PASSCODE="replace-with-a-long-unique-organizer-passphrase"
+# For offline demonstration only: set to true locally, NEVER in production.
+DEMO_MODE="false"

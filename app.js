@@ -13,13 +13,38 @@ let state=blankState(),day='1',floor=1,isLSC=false,token=null,authEpoch=0,mode='
 let selection=null,dirty=false,paperPick=PAPER_COLORS[0],mapOpen=false,mapFloor=1,mapFollow=true,mapView=null;
 let scene,camera,renderer,hallGroups={},floorMeshes={},boothMeshes={},papers={},roomHL,raycaster,pointer,targets=[],cats=[];
 let cam={z:H.start,yaw:0,pitch:0,fov:68},goal={...cam},walk=0,keyWalk=0,tween=null,last=performance.now(),floorBusy=false,toastTimer;
-let demo=false,authLoading=false,refreshTimer,requestId=0;
+let demo=false,authLoading=false,refreshTimer,requestId=0,connectionError=null;
 const emptyBooth=()=>({org:'',rep:'',description:'',notes:'',color:DEFAULT_COLOR,status:'available'});
 const booth=id=>({...emptyBooth(),...state.days[day].booths[id]});
 const reservation=id=>state.days[day].rooms[id]||{reservedFor:'',note:'',paper:PAPER_COLORS[0]};
 function toast(message){$('toast').textContent=message;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),4200);}
 function sync(kind,message){$('syncInfo').className=`syncInfo ${kind}`;$('syncInfo').lastElementChild.textContent=message;$('lmNote').textContent=message;let badge=$('connection');if(!badge){badge=document.createElement('p');badge.id='connection';badge.style.cssText='margin:5px 0 0;font-size:11px;max-width:240px';$('availLine').parentElement.after(badge);}badge.textContent=message;badge.style.color=kind==='bad'?'#ffb4a9':kind==='ok'?'#c6e9ae':'#E8C86A';}
-function showMode(){if(demo)sync('','LOCAL DEMO · this browser only, not Neon');else if(mode==='neon')sync('ok','Live · refreshes every 15 seconds');else if(mode==='checking')sync('busy','Connecting to the shared plan…');else sync('bad','Offline · read-only cached plan; retrying automatically');setControls();}
+function connectionMessage(error){
+  if(!error)return 'Checking database connection and schema…';
+  let message=`${error.code||'CONNECTION_ERROR'}\n\n${error.message}`;
+  if(error.missingTables?.length)message+=`\n\nMissing or inaccessible tables: ${error.missingTables.join(', ')}`;
+  if(error.missingColumns)for(const [table,columns] of Object.entries(error.missingColumns))message+=`\nMissing columns in ${table}: ${columns.join(', ')}`;
+  if(error.requestId)message+=`\n\nError reference: ${error.requestId}`;
+  return message;
+}
+function showMode(){
+  if(demo)sync('','LOCAL DEMO · this browser only, not Neon');
+  else if(mode==='neon')sync('ok','Live · refreshes every 15 seconds');
+  else if(mode==='checking')sync('busy','Connecting to the shared plan…');
+  else {sync('bad',`Offline · ${connectionError?.code||'connection failed'} · read-only`);$('connection').title=connectionMessage(connectionError);$('lmNote').textContent=connectionMessage(connectionError);}
+  $('connectionDetails').hidden=mode!=='error'||demo;
+  setControls();
+}
+function showConnectionDetails(){
+  $('dbMessage').textContent=connectionMessage(connectionError);
+  $('dbDetails').classList.add('open');
+}
+async function checkConnection(){
+  $('dbCheck').disabled=true;$('dbMessage').textContent='Checking the deployed database connection, tables, columns and permissions…';
+  try{await api('GET','health');connectionError=null;$('dbMessage').textContent='Connection, required tables and permissions are ready. Reloading the plan…';await pull(true);if(connectionError)$('dbMessage').textContent=connectionMessage(connectionError);else $('dbMessage').textContent='Connection and schema checks passed. The shared plan is live.';}
+  catch(error){connectionError=error;$('dbMessage').textContent=connectionMessage(error);}
+  finally{$('dbCheck').disabled=false;}
+}
 function cachePublic(){try{localStorage.setItem(CACHE,JSON.stringify(publicState(state)));}catch{}}
 function loadCache(){try{const raw=JSON.parse(localStorage.getItem(CACHE));const n=cleanImport(raw);n.revision=0;state=publicState(n);}catch{} }
 function clearPrivate(){for(const d of DAYS)for(const b of Object.values(state.days[d].booths))delete b.notes;$('fNotes').value='';cachePublic();}
@@ -37,7 +62,7 @@ async function api(method,path,data,{write=false,signal}={}){
   const response=await fetch(`/api/${path}`,{method,headers,body:data===undefined?undefined:JSON.stringify(data),cache:'no-store',signal:signal||AbortSignal.timeout(18000),credentials:'same-origin'});
   if(!response.headers.get('content-type')?.includes('application/json'))throw new Error('The Pages API is missing or returned a non-JSON response. Check the Functions deployment.');
   const result=await response.json();
-  if(!response.ok){const error=new Error(result.error||`HTTP ${response.status}`);error.status=response.status;throw error;}
+  if(!response.ok){const error=new Error(result.error||`HTTP ${response.status}`);error.status=response.status;error.code=result.code;error.requestId=result.requestId;error.missingTables=result.missingTables;error.missingColumns=result.missingColumns;throw error;}
   return result;
 }
 function apply(raw){
@@ -50,13 +75,13 @@ async function pull(force=false){
   try{
     const result=await api('GET','state');
     if(epoch!==authEpoch||id!==requestId)return;
-    const wasOffline=mode!=='neon';mode='neon';failures=0;
+    const wasOffline=mode!=='neon';mode='neon';failures=0;connectionError=null;
     if(force||wasOffline||result.revision!==state.revision)apply(result);
     showMode();
   }catch(error){
     if(epoch!==authEpoch||id!==requestId)return;
     if(error.status===401){await signOut(false);toast('Session expired. Sign in again.');return;}
-    mode='error';failures++;showMode();
+    mode='error';failures++;connectionError=error;showMode();
     if(force)toast(error.message);
   }finally{if(id===requestId)polling=false;}
 }
@@ -326,6 +351,8 @@ function mapPoint(x,y){const p=$('mapSvg').createSVGPoint();p.x=x;p.y=y;return p
 
 /* ---------- UI and input ---------- */
 function bindUI(){
+  $('connectionDetails').onclick=showConnectionDetails;$('dbClose').onclick=()=>$('dbDetails').classList.remove('open');$('dbCheck').onclick=checkConnection;
+  $('dbDetails').onclick=e=>{if(e.target===$('dbDetails'))$('dbDetails').classList.remove('open');};
   for(const b of document.querySelectorAll('#days button'))b.onclick=()=>setDay(b.dataset.day);
   $('pClose').onclick=closePanel;$('pSignIn').onclick=openSignIn;$('lscBtn').onclick=openSignIn;$('lscGo').onclick=signIn;$('lscCancel').onclick=()=>$('lscWrap').classList.remove('open');$('lscPass').onkeydown=e=>{if(e.key==='Enter')signIn();};$('signOutBtn').onclick=()=>{signOut();};
   $('lscWrap').onclick=e=>{if(e.target===$('lscWrap'))$('lscWrap').classList.remove('open');};
@@ -367,7 +394,7 @@ function bindUI(){
   function closeIntro(){if($('introHide').checked)try{localStorage.setItem('mendoza_welcome_hidden','1');}catch{}$('intro').classList.remove('show');}
   $('envelope').onclick=openLetter;$('introGo').onclick=closeIntro;$('brandTitle').onclick=showIntro;$('intro').onclick=e=>{if(e.target===$('intro')&&$('intro').classList.contains('reading'))closeIntro();};
   addEventListener('keydown',e=>{
-    if(e.key==='Escape'){if($('intro').classList.contains('show')){if($('intro').classList.contains('reading'))closeIntro();else openLetter();}else if($('lscWrap').classList.contains('open'))$('lscWrap').classList.remove('open');else if(selection)closePanel();else toggleMap(false);return;}
+    if(e.key==='Escape'){if($('dbDetails').classList.contains('open')){$('dbDetails').classList.remove('open');return;}if($('intro').classList.contains('show')){if($('intro').classList.contains('reading'))closeIntro();else openLetter();}else if($('lscWrap').classList.contains('open'))$('lscWrap').classList.remove('open');else if(selection)closePanel();else toggleMap(false);return;}
     if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)||$('intro').classList.contains('show')||$('lscWrap').classList.contains('open'))return;
     const k=e.key.toLowerCase();if(['w','arrowup','s','arrowdown'].includes(k)){e.preventDefault();keyWalk=['w','arrowup'].includes(k)?1:-1;tween=null;}else if(['a','arrowleft'].includes(k))goal.yaw+=.25;else if(['d','arrowright'].includes(k))goal.yaw-=.25;else if(k==='m')toggleMap();else if(DAYS.includes(k))setDay(k);
   });

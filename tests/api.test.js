@@ -5,7 +5,7 @@ import {PGlite} from '@electric-sql/pglite';
 import {createHandler} from '../functions/api/[[path]].js';
 import {blankState} from '../lib/model.js';
 let db,handler,token,revision;
-const env={DATABASE_URL:'test-database',ADMIN_PASSCODE:'a unique organizer passphrase'};
+const env={DATABASE_URL:'postgresql://owner:example@ep-test.neon.tech/neondb?sslmode=require',ADMIN_PASSCODE:'a unique organizer passphrase'};
 // The production driver is lazy; this adapter executes the exact production SQL
 // in real embedded PostgreSQL, with transaction rollback and no Neon credentials.
 function driver(){return {

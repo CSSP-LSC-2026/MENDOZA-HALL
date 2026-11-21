@@ -93,7 +93,7 @@ The connection indicator clearly says **LOCAL DEMO — this browser only**. The 
 - **Organizer downloads include private notes.** Treat assignment exports as confidential backups.
 - All mutation routes require authorization; hiding the editor is not the security boundary. Successful login attempts also count toward the 10-attempt/15-minute per-IP login limit. Large groups behind one public IP should avoid repeatedly signing in at once.
 - Change the organizer passphrase in Cloudflare and redeploy to rotate it. To revoke all existing sessions immediately, run `DELETE FROM organizer_sessions;` in Neon. Session verification uses database time.
-- API errors deliberately do not reveal connection strings, SQL, or driver diagnostics. Inspect Cloudflare/Neon configuration privately. All database HTTP traffic is server-side.
+- API errors deliberately do not reveal connection strings, SQL, raw driver messages or user data. The response supplies an allowlisted diagnostic code and error reference; Cloudflare Function logs record only that reference, the diagnostic code and a SQLSTATE when available. All database HTTP traffic is server-side.
 
 ## Source layout
 
@@ -125,6 +125,40 @@ The browser tests exercise graphics startup, organizer login, actual SQL-backed 
 **Live Neon/Cloudflare deployment is not verified by the local tests.** You must configure the secrets/schema above and complete the deployment checks on your own account. Browser tests require WebGL (hardware acceleration or software rendering).
 
 ## Troubleshooting
+
+### “Database unavailable or schema missing” after setting the secrets
+
+The previous version used that same generic message for **every** runtime exception. It did not establish whether Neon was reachable or whether tables were actually missing. A successful Pages build does not verify the runtime database connection.
+
+In this version, select **Database issue — details → Check connection**, or open **`/api/health`** on the deployed site. This is a read-only, unauthenticated diagnostic that checks the actual runtime connection, required public tables/columns, role permissions and metadata initialization. It returns no credentials, assignments, private notes, database host/name or connection URL.
+
+| Code | What to do |
+| --- | --- |
+| `DB_NOT_CONFIGURED` | Set `DATABASE_URL` in the environment used by the URL you are visiting (Production vs Preview), then redeploy. |
+| `DB_URL_INVALID` | Copy **only** the complete PostgreSQL connection URL from Neon Connect. Do not include `psql`, `DATABASE_URL=`, shell quotes or a Neon API key. Surrounding whitespace is trimmed. |
+| `DB_AUTH_FAILED` | Copy a fresh URL for the correct Neon role/password, update the secret and redeploy. |
+| `DB_SCHEMA_MISSING` / `DB_SCHEMA_INCOMPLETE` | Check the missing table names at `/api/health`. Run the latest full schema on the **same branch and database** selected in Neon Connect when you copied `DATABASE_URL`. |
+| `DB_SCHEMA_OUTDATED` | Compare the reported missing columns with `schema.sql`; `CREATE TABLE IF NOT EXISTS` does not add columns to an existing differently shaped table. Back up data before a targeted migration; do not delete tables. |
+| `DB_SCHEMA_UNINITIALIZED` | Run the `INSERT INTO public.event_meta ... ON CONFLICT DO NOTHING` statement from `schema.sql`. |
+| `DB_PERMISSION_DENIED` | Use a role with access to the public schema and SELECT/INSERT/UPDATE/DELETE rights on all six application tables. |
+| `DB_DATABASE_NOT_FOUND` | The URL points to a database that does not exist on that Neon endpoint. Select the intended branch/database in Neon Connect and copy its URL. |
+| `DB_CONNECTION_FAILED` / `DB_STARTING` | Check the Neon endpoint state, network/IP restrictions, and current URL; retry after the endpoint wakes up. |
+| `API_INTERNAL_ERROR` / `DB_REQUEST_FAILED` | Use the displayed error reference to locate the safe code/SQLSTATE in Cloudflare Function logs; do not assume the schema is wrong. |
+
+**The original uploaded schema had four tables. This app needs six**, including `event_meta` and `organizer_sessions`, plus the single `event_meta` row. Adding a Cloudflare environment variable does not execute SQL. Rerunning the current `schema.sql` is non-destructive for the intended schema. The application and schema explicitly use `public` so a role's custom `search_path` cannot silently select the wrong tables.
+
+To check the six tables directly in Neon's SQL Editor, select the intended branch/database and run this read-only query:
+
+```sql
+SELECT name, to_regclass('public.' || name) AS present
+FROM unnest(ARRAY[
+  'event_days', 'booth_assignments', 'room_reservations',
+  'login_attempts', 'event_meta', 'organizer_sessions'
+]) AS required(name);
+```
+
+A `null` in `present` means that table is absent on the database you selected. If all six are present there but `/api/health` reports missing tables, check that the deployed URL uses that exact Neon branch/database and a role with access. You can share the diagnostic code, missing table/column names, and error reference for troubleshooting; **never share `DATABASE_URL`, passwords or passcodes**.
+
 
 | Symptom | Check |
 | --- | --- |

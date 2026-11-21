@@ -1,11 +1,11 @@
 -- Required: run this entire idempotent migration in the Neon SQL Editor before deployment.
 -- The application deliberately does not run DDL during requests.
-CREATE TABLE IF NOT EXISTS event_days (
+CREATE TABLE IF NOT EXISTS public.event_days (
   day smallint PRIMARY KEY CHECK (day BETWEEN 1 AND 3),
   title text NOT NULL DEFAULT '',
   updated_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE TABLE IF NOT EXISTS booth_assignments (
+CREATE TABLE IF NOT EXISTS public.booth_assignments (
   day smallint NOT NULL CHECK (day BETWEEN 1 AND 3),
   booth_id text NOT NULL,                 -- e.g. 102-R1, DEAN-G1, 214–215-R1
   org text NOT NULL DEFAULT '',
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS booth_assignments (
   updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (day, booth_id)
 );
-CREATE TABLE IF NOT EXISTS room_reservations (
+CREATE TABLE IF NOT EXISTS public.room_reservations (
   day smallint NOT NULL CHECK (day BETWEEN 1 AND 3),
   room_id text NOT NULL,                  -- e.g. 105, dean, 214–215
   reserved_for text NOT NULL,
@@ -26,25 +26,25 @@ CREATE TABLE IF NOT EXISTS room_reservations (
   updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (day, room_id)
 );
-CREATE TABLE IF NOT EXISTS login_attempts (
+CREATE TABLE IF NOT EXISTS public.login_attempts (
   ip text PRIMARY KEY,
   fails integer NOT NULL DEFAULT 0,
   first_fail timestamptz NOT NULL DEFAULT now()
 );
 
 -- Handy views for checking assignments in the Neon console:
--- SELECT day, booth_id, org, rep, status FROM booth_assignments ORDER BY day, booth_id;
--- SELECT day, room_id, reserved_for, note FROM room_reservations ORDER BY day, room_id;
+-- SELECT day, booth_id, org, rep, status FROM public.booth_assignments ORDER BY day, booth_id;
+-- SELECT day, room_id, reserved_for, note FROM public.room_reservations ORDER BY day, room_id;
 
 -- Shared revision serializes writes and prevents lost updates from stale editors.
-CREATE TABLE IF NOT EXISTS event_meta (
+CREATE TABLE IF NOT EXISTS public.event_meta (
   id boolean PRIMARY KEY DEFAULT true CHECK (id),
   revision integer NOT NULL DEFAULT 0,
   updated_at timestamptz NOT NULL DEFAULT now()
 );
-INSERT INTO event_meta (id) VALUES (true) ON CONFLICT DO NOTHING;
-CREATE TABLE IF NOT EXISTS organizer_sessions (
+INSERT INTO public.event_meta (id) VALUES (true) ON CONFLICT DO NOTHING;
+CREATE TABLE IF NOT EXISTS public.organizer_sessions (
   token_hash text PRIMARY KEY,
   expires_at timestamptz NOT NULL
 );
-CREATE INDEX IF NOT EXISTS organizer_sessions_expiry ON organizer_sessions (expires_at);
+CREATE INDEX IF NOT EXISTS organizer_sessions_expiry ON public.organizer_sessions (expires_at);

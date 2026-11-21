@@ -2,6 +2,7 @@ import { neon } from '@neondatabase/serverless';
 import { blankState,DAYS,cleanBooth,boothEmpty,cleanRoom,cleanImport,text,validateDay,validateId } from '../../lib/model.js';
 import { hashToken,randomToken,verifyPasscode } from '../../lib/auth.js';
 import { DatabaseSetupError,databaseConnectionString,checkDatabase,databaseFailure,safeDatabaseLog } from '../../lib/database.js';
+import { withSchemaRecovery } from '../../lib/setup.js';
 
 const headers={'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store, private','X-Content-Type-Options':'nosniff','Vary':'Authorization'};
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers});
@@ -24,34 +25,36 @@ async function session(sql,request){
   const h=request.headers.get('authorization');if(!h) return null;
   if(!/^Bearer [a-f0-9]{64}$/.test(h)) fail(401,'Session expired. Sign in again.');
   const hash=await hashToken(h.slice(7));
-  const rows=await sql.query('SELECT token_hash FROM public.organizer_sessions WHERE token_hash=$1 AND expires_at>now()',[hash]);
+  const rows=await withSchemaRecovery(sql,()=>sql.query('SELECT token_hash FROM public.organizer_sessions WHERE token_hash=$1 AND expires_at>now()',[hash]));
   if(!rows.length) fail(401,'Session expired. Sign in again.');
   return hash;
 }
 async function readState(sql,privateView){
-  const [meta,days,booths,rooms]=await sql.transaction([
-    sql.query('SELECT revision,updated_at FROM public.event_meta WHERE id=true',[]),
-    sql.query('SELECT day,title FROM public.event_days',[]),
-    sql.query(`SELECT day,booth_id,org,rep,description,color,status${privateView?',notes':''} FROM public.booth_assignments`,[]),
-    sql.query('SELECT day,room_id,reserved_for,note,paper FROM public.room_reservations',[])
-  ],{isolationLevel:'RepeatableRead',readOnly:true});
-  if(!meta.length) throw new DatabaseSetupError('DB_SCHEMA_UNINITIALIZED','The event_meta initialization row is missing. Run the complete schema.sql, including its INSERT statement.');
-  const state=blankState();state.revision=meta[0].revision;state.updatedAt=new Date(meta[0].updated_at).getTime();
-  for(const r of days) state.days[r.day].title=r.title;
-  for(const r of booths){const {day,booth_id,...b}=r;state.days[day].booths[booth_id]=b;}
-  for(const r of rooms) state.days[r.day].rooms[r.room_id]={reservedFor:r.reserved_for,note:r.note,paper:r.paper};
-  return state;
+  return withSchemaRecovery(sql,async()=>{
+    const [meta,days,booths,rooms]=await sql.transaction([
+      sql.query('SELECT revision,updated_at FROM public.event_meta WHERE id=true',[]),
+      sql.query('SELECT day,title FROM public.event_days',[]),
+      sql.query(`SELECT day,booth_id,org,rep,description,color,status${privateView?',notes':''} FROM public.booth_assignments`,[]),
+      sql.query('SELECT day,room_id,reserved_for,note,paper FROM public.room_reservations',[])
+    ],{isolationLevel:'RepeatableRead',readOnly:true});
+    if(!meta.length) throw new DatabaseSetupError('DB_SCHEMA_UNINITIALIZED','The event_meta initialization row is missing. Run the complete schema.sql, including its INSERT statement.');
+    const state=blankState();state.revision=meta[0].revision;state.updatedAt=new Date(meta[0].updated_at).getTime();
+    for(const r of days) state.days[r.day].title=r.title;
+    for(const r of booths){const {day,booth_id,...b}=r;state.days[day].booths[booth_id]=b;}
+    for(const r of rooms) state.days[r.day].rooms[r.room_id]={reservedFor:r.reserved_for,note:r.note,paper:r.paper};
+    return state;
+  });
 }
 const GUARD='EXISTS (SELECT 1 FROM public.event_meta WHERE id=true AND revision=$1)';
 async function write(sql,request,queries){
   const match=request.headers.get('if-match');
   if(!match||!/^"\d+"$/.test(match)) fail(428,'A current state revision is required');
   const revision=Number(match.slice(1,-1));if(!Number.isSafeInteger(revision)||revision>2147483646) fail(400,'Invalid revision');
-  const result=await sql.transaction([
+  const result=await withSchemaRecovery(sql,()=>sql.transaction([
     sql.query('SELECT pg_advisory_xact_lock(20261121)',[]),
     ...queries.map(([q,args])=>sql.query(q,[revision,...args])),
     sql.query('UPDATE public.event_meta SET revision=revision+1,updated_at=now() WHERE id=true AND revision=$1 RETURNING revision',[revision])
-  ]);
+  ]));
   if(!result.at(-1).length) fail(409,'Someone changed the plan. The latest version has been loaded; review and try again.');
 }
 const upsertDay=(day,title)=>[`INSERT INTO public.event_days(day,title) SELECT $2,$3 WHERE ${GUARD} ON CONFLICT(day) DO UPDATE SET title=EXCLUDED.title,updated_at=now()`,[day,title]];
@@ -71,22 +74,22 @@ export function createHandler(database=neon,{log=record=>console.error(JSON.stri
       const input=await body(request);
       // Increment BEFORE checking, atomically, including successful attempts. Concurrent guesses share the limit.
       const ip=(request.headers.get('CF-Connecting-IP')||'local').slice(0,100);
-      const attempts=await sql.query(`INSERT INTO public.login_attempts(ip,fails,first_fail) VALUES($1,1,now()) ON CONFLICT(ip) DO UPDATE SET fails=CASE WHEN login_attempts.first_fail<now()-interval '15 minutes' THEN 1 ELSE login_attempts.fails+1 END,first_fail=CASE WHEN login_attempts.first_fail<now()-interval '15 minutes' THEN now() ELSE login_attempts.first_fail END RETURNING fails`,[ip]);
+      const attempts=await withSchemaRecovery(sql,()=>sql.query(`INSERT INTO public.login_attempts(ip,fails,first_fail) VALUES($1,1,now()) ON CONFLICT(ip) DO UPDATE SET fails=CASE WHEN login_attempts.first_fail<now()-interval '15 minutes' THEN 1 ELSE login_attempts.fails+1 END,first_fail=CASE WHEN login_attempts.first_fail<now()-interval '15 minutes' THEN now() ELSE login_attempts.first_fail END RETURNING fails`,[ip]));
       if(attempts[0].fails>10) fail(429,'Too many sign-in attempts. Wait 15 minutes.');
       if(!await verifyPasscode(input?.passcode,env.ADMIN_PASSCODE)) fail(401,'Incorrect passcode');
       const token=randomToken(),hash=await hashToken(token);
-      await sql.transaction([
+      await withSchemaRecovery(sql,()=>sql.transaction([
         sql.query('DELETE FROM public.organizer_sessions WHERE expires_at<=now()',[]),
         sql.query("DELETE FROM public.login_attempts WHERE first_fail<now()-interval '1 day'",[]),
         sql.query("INSERT INTO public.organizer_sessions(token_hash,expires_at) VALUES($1,now()+interval '8 hours')",[hash])
-      ]);
+      ]));
       return json({ok:true,token});
     }
     const who=await session(sql,request);
     if(route==='state'&&method==='GET'&&parts.length===1) return json(await readState(sql,!!who));
     if(route==='session'&&method==='GET'&&parts.length===1){if(!who) fail(401,'Sign in first');return json({ok:true});}
     if(!who) fail(401,'Organizer sign-in required');
-    if(route==='logout'&&method==='POST'&&parts.length===1){await sql.query('DELETE FROM public.organizer_sessions WHERE token_hash=$1',[who]);return json({ok:true});}
+    if(route==='logout'&&method==='POST'&&parts.length===1){await withSchemaRecovery(sql,()=>sql.query('DELETE FROM public.organizer_sessions WHERE token_hash=$1',[who]));return json({ok:true});}
     let queries=[];
     try{
       if(route==='booths'&&method==='PUT'&&parts.length===3){

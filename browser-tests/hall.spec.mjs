@@ -9,8 +9,12 @@ async function openBooth(page,id='102-R1'){
 }
 async function login(page){await page.locator('#lscBtn').click();await page.locator('#lscPass').fill(passphrase);await page.locator('#lscGo').click();await expect(page.locator('body')).toHaveClass(/lsc/);}
 
-test('real SQL API: confirmed writes, failure reconciliation, private cache and logout',async({page})=>{
-  const db=new PGlite();await db.exec(readFileSync(new URL('../schema.sql',import.meta.url),'utf8'));
+for(const initial of ['empty','original-four-tables'])test(`${initial} database: automatic setup, confirmed writes, private cache and logout`,async({page})=>{
+  const db=new PGlite();
+  if(initial==='original-four-tables'){
+    await db.exec(readFileSync(new URL('../schema.sql',import.meta.url),'utf8').split('-- Shared revision')[0]);
+    await db.exec("INSERT INTO public.event_days(day,title) VALUES(1,'Legacy opening');INSERT INTO public.booth_assignments(day,booth_id,org,notes,status) VALUES(1,'102-R1','Preserved Society','LEGACY PRIVATE','assigned');");
+  }
   const driver=()=>({query:(text,params=[])=>({text,params,then(resolve,reject){return db.query(text,params).then(r=>r.rows).then(resolve,reject);}}),transaction:queries=>db.transaction(async tx=>{const result=[];for(const q of queries)result.push((await tx.query(q.text,q.params)).rows);return result;})});
   const handler=createHandler(driver);let rejectSave=false,conflict=false;const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.addInitScript(()=>localStorage.setItem('mendoza_welcome_hidden','1'));
@@ -23,6 +27,9 @@ test('real SQL API: confirmed writes, failure reconciliation, private cache and 
   });
   try{
     await page.goto('/');await expect(page.locator('#loader')).toHaveClass(/hide/);await expect(page.locator('#connection')).toContainText('Live');
+    // Inspect the SQL database rather than a mocked success indicator.
+    expect((await db.query("SELECT count(*) AS n FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'")).rows[0].n).toBe(6);
+    if(initial==='original-four-tables'){expect((await db.query("SELECT notes FROM public.booth_assignments WHERE booth_id='102-R1'")).rows[0].notes).toBe('LEGACY PRIVATE');await expect(page.locator('#dayTitleTxt')).toHaveText('Legacy opening');expect(await page.evaluate(()=>JSON.stringify(localStorage))).not.toContain('LEGACY PRIVATE');}
     await login(page);await openBooth(page);await page.locator('#fOrg').fill('Council Society');await page.locator('#fNotes').fill('PRIVATE NOTES');await page.locator('#bpSave').click();await expect(page.locator('#toast')).toHaveText('Saved booth 102-R1');
     expect((await db.query('SELECT org,notes FROM booth_assignments')).rows[0]).toMatchObject({org:'Council Society',notes:'PRIVATE NOTES'});
     expect(await page.evaluate(()=>JSON.stringify(localStorage))).not.toContain('PRIVATE NOTES');

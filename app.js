@@ -41,8 +41,8 @@ function showConnectionDetails(){
 }
 async function checkConnection(){
   $('dbCheck').disabled=true;$('dbMessage').textContent='Checking the deployed database connection, tables, columns and permissions…';
-  try{await api('GET','health');connectionError=null;$('dbMessage').textContent='Connection, required tables and permissions are ready. Reloading the plan…';await pull(true);if(connectionError)$('dbMessage').textContent=connectionMessage(connectionError);else $('dbMessage').textContent='Connection and schema checks passed. The shared plan is live.';}
-  catch(error){connectionError=error;$('dbMessage').textContent=connectionMessage(error);}
+  try{await pull(true);await api('GET','health');if(connectionError)throw connectionError;if(mode!=='neon')throw new Error('The schema is ready, but the shared plan has not loaded yet. Retry shortly.');$('dbMessage').textContent='Connection and schema checks passed. The shared plan is live.';}
+  catch(error){connectionError=error;mode='error';showMode();$('dbMessage').textContent=connectionMessage(error);}
   finally{$('dbCheck').disabled=false;}
 }
 function cachePublic(){try{localStorage.setItem(CACHE,JSON.stringify(publicState(state)));}catch{}}

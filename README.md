@@ -6,7 +6,9 @@ A self-contained Three.js r128 hallway for booth placement and room reservations
 
 ### 1. Prepare Neon
 
-Create a Neon PostgreSQL project/database. Run **all of [`schema.sql`](schema.sql)** in Neon's SQL Editor, against the database/branch you plan to connect. It is idempotent and can be rerun if you previously ran the older schema. It adds the revision and organizer-session tables required by this version.
+Create a Neon PostgreSQL project/database. **The API now automatically creates missing application tables on first use** and repairs the missing `event_meta` initialization row. It also upgrades the original four-table setup by creating `event_meta` and `organizer_sessions`, without modifying existing assignments. Use a Neon database-owner connection for this initial setup.
+
+Manual alternative: run all of [`schema.sql`](schema.sql) in Neon's SQL Editor against the database/branch you plan to connect, as its owner. It is idempotent. If you prefer a restricted runtime role with only DML rights, do this manual setup first, then grant that role access to all six tables.
 
 Copy your Neon connection string (including `sslmode=require`). Prefer its pooled connection URL. Keep it private. **Do not paste credentials into HTML, JavaScript, Git, or chat.**
 
@@ -31,7 +33,7 @@ In **Settings → Variables and Secrets**, configure these for the deployment en
 
 There is **no default production passcode**. The old public demo passcode is not used. Never expose these values through frontend/Vite variables. `SESSION_SECRET` is not required: sessions use cryptographically random, opaque tokens; only their SHA-256 hashes are stored in PostgreSQL.
 
-**Do not enable `DEMO_MODE` in production.** Configure Production and Preview separately; use a separate Neon branch/database for previews. If deploying this work before merging, select this session's branch (`arena/d208e5ff-mendoza-hall`) as the Pages deployment source/allowed preview branch. Cloudflare cannot build files that have not been published to the connected Git repository.
+**Do not enable `DEMO_MODE` in production.** Configure Production and Preview separately; use a separate Neon branch/database for previews. If deploying this work before merging, select the current pull request branch as the Pages deployment source/allowed preview branch. Cloudflare cannot build files that have not been published to the connected Git repository.
 
 ### 3. Deploy and verify
 
@@ -55,7 +57,8 @@ Requires Node.js 22 or newer.
 npm ci
 cp .dev.vars.example .dev.vars
 # Edit .dev.vars locally: set DATABASE_URL and ADMIN_PASSCODE.
-# Run schema.sql on that development Neon database first.
+# A database-owner connection permits automatic first-use setup.
+# Alternatively, run schema.sql manually with an owner role first.
 npm run dev
 ```
 
@@ -95,6 +98,21 @@ The connection indicator clearly says **LOCAL DEMO — this browser only**. The 
 - Change the organizer passphrase in Cloudflare and redeploy to rotate it. To revoke all existing sessions immediately, run `DELETE FROM organizer_sessions;` in Neon. Session verification uses database time.
 - API errors deliberately do not reveal connection strings, SQL, raw driver messages or user data. The response supplies an allowlisted diagnostic code and error reference; Cloudflare Function logs record only that reference, the diagnostic code and a SQLSTATE when available. All database HTTP traffic is server-side.
 
+## Automatic setup and data safety
+
+When a normal API query reports PostgreSQL `42P01` (missing table), or the state load finds no `event_meta` initialization row, the API:
+
+1. Opens a **separate, read-write transaction** (not the read-only state snapshot).
+2. Acquires the same transaction-scoped advisory lock used by assignment writes. Concurrent Workers cannot race to create the schema.
+3. Executes only the bundled `CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`, and metadata `INSERT ... ON CONFLICT DO NOTHING` statements.
+4. Commits, then retries **only the failed query/transaction, once**. A login whose session table was missing is not counted twice.
+
+Existing tables are **not dropped, altered, cleared, renamed or overwritten**. Existing assignment text, private notes, day titles, reservations, revisions and sessions survive setup. An incompatible existing column is deliberately **not** guessed at or destructively rebuilt. Manual migration is required for a genuinely different table shape.
+
+Setup rolls back completely on failure, has lock/statement timeouts, and is never triggered by a bad password, invalid database credentials, network errors, normal DML permission errors or missing columns. Healthy requests do not run DDL. `/api/health` remains read-only. SQL never comes from the browser; all setup statements are bundled with the server code and match `schema.sql` in automated tests.
+
+The test suite starts with both **an entirely empty PostgreSQL database** and **the original four-table schema with real saved data**, exercises automatic setup, then logs in and saves assignments. An additional test uses the **actual Neon HTTP client** end to end against embedded PostgreSQL, covering lazy query serialization, read-only vs setup transaction options, PostgreSQL type parsing, auth, saving and logout. Browser tests cover both database starting states. These checks run on pull requests via `.github/workflows/check.yml` without production credentials.
+
 ## Source layout
 
 ```text
@@ -103,7 +121,9 @@ app.js               browser interaction, rendering and synchronization
 lib/model.js         shared layout and validation
 lib/auth.js          server credential/token helpers
 functions/api/       Pages API catch-all
-schema.sql           required, idempotent database setup
+schema.sql           optional manual, idempotent database setup
+lib/schema.js        matching bundled setup statements (checked by tests)
+lib/setup.js         transactional, additive missing-table recovery
 build.mjs            offline bundle + CSP generation
 public/              favicon/manifest; generated index and headers on build
 wrangler.toml        Pages output/compatibility configuration
@@ -122,7 +142,7 @@ npm run test:browser     # browser tests, starts/reuses a local Pages server
 
 The browser tests exercise graphics startup, organizer login, actual SQL-backed saves through the production handler, failed requests, stale revisions, public cache filtering, server logout, upstairs navigation, mobile layout, and explicit-demo vs missing-API behavior. SQL integration tests use PGlite (embedded PostgreSQL), not mock SQL return values. Browser API traffic is routed to the production handler with that test database; no live Neon credentials are required.
 
-**Live Neon/Cloudflare deployment is not verified by the local tests.** You must configure the secrets/schema above and complete the deployment checks on your own account. Browser tests require WebGL (hardware acceleration or software rendering).
+**Live Neon/Cloudflare deployment is not verified by the local tests.** You must configure the secrets/role above and complete the deployment checks on your own account. Browser tests require WebGL (hardware acceleration or software rendering).
 
 ## Troubleshooting
 
@@ -137,15 +157,17 @@ In this version, select **Database issue — details → Check connection**, or 
 | `DB_NOT_CONFIGURED` | Set `DATABASE_URL` in the environment used by the URL you are visiting (Production vs Preview), then redeploy. |
 | `DB_URL_INVALID` | Copy **only** the complete PostgreSQL connection URL from Neon Connect. Do not include `psql`, `DATABASE_URL=`, shell quotes or a Neon API key. Surrounding whitespace is trimmed. |
 | `DB_AUTH_FAILED` | Copy a fresh URL for the correct Neon role/password, update the secret and redeploy. |
-| `DB_SCHEMA_MISSING` / `DB_SCHEMA_INCOMPLETE` | Check the missing table names at `/api/health`. Run the latest full schema on the **same branch and database** selected in Neon Connect when you copied `DATABASE_URL`. |
+| `DB_SCHEMA_MISSING` / `DB_SCHEMA_INCOMPLETE` | Reload the application (`/api/state` attempts additive setup). `/api/health` is read-only, so it can report missing tables before the first app request. If setup cannot complete, use an owner connection or run the latest full schema once on the same branch/database. |
 | `DB_SCHEMA_OUTDATED` | Compare the reported missing columns with `schema.sql`; `CREATE TABLE IF NOT EXISTS` does not add columns to an existing differently shaped table. Back up data before a targeted migration; do not delete tables. |
-| `DB_SCHEMA_UNINITIALIZED` | Run the `INSERT INTO public.event_meta ... ON CONFLICT DO NOTHING` statement from `schema.sql`. |
+| `DB_SCHEMA_UNINITIALIZED` | The app repairs this missing initialization row on its next state request. The manual equivalent is the `INSERT INTO public.event_meta ... ON CONFLICT DO NOTHING` statement in `schema.sql`. |
+| `DB_SETUP_PERMISSION_DENIED` | The connection works, but this role cannot create missing tables/indexes. Use a Neon database-owner connection for initial setup, or run the full `schema.sql` as owner in the same branch/database. Existing assignments are untouched. |
+| `DB_SETUP_BUSY` | Setup hit a lock or statement timeout. Retry shortly; the setup transaction rolls back safely and can be repeated. |
 | `DB_PERMISSION_DENIED` | Use a role with access to the public schema and SELECT/INSERT/UPDATE/DELETE rights on all six application tables. |
 | `DB_DATABASE_NOT_FOUND` | The URL points to a database that does not exist on that Neon endpoint. Select the intended branch/database in Neon Connect and copy its URL. |
 | `DB_CONNECTION_FAILED` / `DB_STARTING` | Check the Neon endpoint state, network/IP restrictions, and current URL; retry after the endpoint wakes up. |
 | `API_INTERNAL_ERROR` / `DB_REQUEST_FAILED` | Use the displayed error reference to locate the safe code/SQLSTATE in Cloudflare Function logs; do not assume the schema is wrong. |
 
-**The original uploaded schema had four tables. This app needs six**, including `event_meta` and `organizer_sessions`, plus the single `event_meta` row. Adding a Cloudflare environment variable does not execute SQL. Rerunning the current `schema.sql` is non-destructive for the intended schema. The application and schema explicitly use `public` so a role's custom `search_path` cannot silently select the wrong tables.
+**The original uploaded schema had four tables. This app needs six**, including `event_meta` and `organizer_sessions`, plus the single `event_meta` row. Merely adding a Cloudflare environment variable did not execute SQL in older versions. This version runs the bundled additive setup automatically when an application query reports a missing table or missing metadata row. Rerunning the current `schema.sql` manually remains non-destructive for the intended schema. The application and schema explicitly use `public` so a role's custom `search_path` cannot silently select the wrong tables.
 
 To check the six tables directly in Neon's SQL Editor, select the intended branch/database and run this read-only query:
 
@@ -164,7 +186,7 @@ A `null` in `present` means that table is absent on the database you selected. I
 | --- | --- |
 | Build cannot find a template | Filename must be exactly `index.src.html`, not `index.src 2.html`. |
 | `npm run build` missing | Ensure Pages is building this project folder/branch and the complete source is published. |
-| Database not configured / 503 | Set runtime `DATABASE_URL`, run all of `schema.sql`, verify database/branch and redeploy. |
+| Database not configured / 503 | Set runtime `DATABASE_URL`, verify database/branch and deploy this version. Missing tables are created automatically if the role can create them; otherwise run `schema.sql` manually as owner. |
 | API returns HTML | Confirm Pages Functions were deployed; static-only upload does not include them. |
 | Organizer login configuration error | Set `ADMIN_PASSCODE` to 16–256 characters and redeploy. |
 | Login returns 429 | Wait 15 minutes for the shared-IP rate limit window. |

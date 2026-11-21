@@ -18,7 +18,7 @@ test('real SQL API: confirmed writes, failure reconciliation, private cache and 
     const original=route.request();
     if(rejectSave&&original.method()==='PUT'){rejectSave=false;await route.abort('failed');return;}
     if(conflict&&original.method()==='PUT'){conflict=false;await db.exec('UPDATE event_meta SET revision=revision+1');}
-    const response=await handler({request:new Request(original.url(),{method:original.method(),headers:original.headers(),body:['GET','HEAD'].includes(original.method())?undefined:original.postData()}),env:{DATABASE_URL:'test',ADMIN_PASSCODE:passphrase}});
+    const response=await handler({request:new Request(original.url(),{method:original.method(),headers:original.headers(),body:['GET','HEAD'].includes(original.method())?undefined:original.postData()}),env:{DATABASE_URL:'postgresql://owner:example@ep-test.neon.tech/neondb?sslmode=require',ADMIN_PASSCODE:passphrase}});
     await route.fulfill({status:response.status,headers:Object.fromEntries(response.headers),body:await response.text()});
   });
   try{
@@ -46,4 +46,25 @@ test('missing API never enables demo; explicit local demo is usable',async({page
   await page.goto('/');await expect(page.locator('#connection')).toContainText('Offline');await page.locator('#lscBtn').click();await expect(page.locator('#lscPass')).toBeEnabled();await page.locator('#lscCancel').click();
   await page.unroute('**/api/**');await page.reload();await expect(page.locator('#connection')).toContainText('LOCAL DEMO');await page.locator('#lscBtn').click();await expect(page.locator('#lscPass')).toBeDisabled();await page.locator('#lscGo').click();await expect(page.locator('body')).toHaveClass(/lsc/);
   await openBooth(page);await page.locator('#fOrg').fill('Local Society');await page.locator('#bpSave').click();await expect(page.locator('#toast')).toContainText('Saved booth');await expect(page.locator('#connection')).toContainText('LOCAL DEMO');
+});
+
+test('database diagnostics persist on mobile and report exact missing setup without secrets',async({page})=>{
+  await page.setViewportSize({width:390,height:844});
+  await page.addInitScript(()=>localStorage.setItem('mendoza_welcome_hidden','1'));
+  let ready=false;
+  await page.route('**/api/**',async route=>{
+    const path=new URL(route.request().url()).pathname;
+    let body,status=200;
+    if(path==='/api/config')body={demo:false};
+    else if(path==='/api/health'&&ready)body={ok:true,database:'connected',schema:'ready'};
+    else if(path==='/api/state'&&ready)body={version:3,revision:0,updatedAt:0,days:{'1':{title:'',booths:{},rooms:{}},'2':{title:'',booths:{},rooms:{}},'3':{title:'',booths:{},rooms:{}}}};
+    else {status=503;body={ok:false,code:path==='/api/health'?'DB_SCHEMA_INCOMPLETE':'DB_SCHEMA_MISSING',error:'Run the complete schema in the same Neon branch and database.',missingTables:['event_meta','organizer_sessions'],missingColumns:{},requestId:'test-error-reference'};}
+    await route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});
+  });
+  await page.goto('/');await expect(page.locator('#connection')).toContainText('DB_SCHEMA_MISSING');
+  await page.locator('#connectionDetails').click();await expect(page.locator('#dbMessage')).toContainText('test-error-reference');
+  await page.locator('#dbCheck').click();await expect(page.locator('#dbMessage')).toContainText('DB_SCHEMA_INCOMPLETE');await expect(page.locator('#dbMessage')).toContainText('event_meta, organizer_sessions');
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(390);
+  ready=true;await page.locator('#dbCheck').click();await expect(page.locator('#dbMessage')).toContainText('The shared plan is live.');await expect(page.locator('#connection')).toContainText('Live');
+  await page.locator('#dbClose').click();await expect(page.locator('#connectionDetails')).toBeHidden();
 });

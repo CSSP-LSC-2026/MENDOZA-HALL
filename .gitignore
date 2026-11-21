@@ -1,0 +1,14 @@
+node_modules/
+public/index.html
+.worker-check/
+.wrangler/
+.dev.vars
+.env
+.env.*
+!.env.example
+test-results/
+playwright-report/
+.arena/
+public/_headers
+public/_routes.json
+deliverables/*.zip

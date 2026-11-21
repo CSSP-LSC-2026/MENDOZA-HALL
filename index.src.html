@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="/site.webmanifest">
+<meta name="theme-color" content="#6E1A28">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Mendoza Hall — Booth & Room Placement</title>
+<meta name="description" content="Walk the Mendoza Hall hallway, see booths and room reservations for Day 1, 2 and 3.">
+<style>
+  :root{
+    --maroon:#7A1F2B; --maroon2:#5E1620; --gold:#E8C86A; --gold2:#C9A227;
+    --panel:rgba(22,19,16,.84); --panel2:rgba(255,252,245,.97);
+    --line:rgba(255,255,255,.14); --txt:#F5EFE0; --dockH:0px;
+    --hand:"Segoe Print","Bradley Hand","Comic Sans MS","Chalkboard SE","Marker Felt",cursive;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#141210;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--txt);}
+  button{font-family:inherit;}
+  #app{position:fixed;inset:0;}
+  #viewport{position:absolute;inset:0;touch-action:none;cursor:grab;}
+  #viewport.dragging{cursor:grabbing;}
+  #viewport.pointing{cursor:pointer;}
+  #viewport canvas{display:block;width:100%;height:100%;}
+  .vignette{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 58%,rgba(0,0,0,.34) 100%);}
+
+  /* ---------- top bar ---------- */
+  .topbar{position:absolute;top:0;left:0;right:0;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:12px 14px;pointer-events:none;z-index:10;}
+  .brand{pointer-events:auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:9px 11px 8px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 6px 24px rgba(0,0,0,.35);}
+  .brandRow{display:flex;align-items:center;gap:8px;}
+  .brand h1{margin:0;font-size:16.5px;letter-spacing:.02em;line-height:1.1;color:#FFF7DE;cursor:pointer;}
+  .brand h1 span{color:var(--gold);}
+  .brand h1:hover{text-decoration:underline dotted rgba(232,200,106,.6);text-underline-offset:3px;}
+  .lscTag{display:none;font-size:10px;font-weight:800;letter-spacing:.1em;background:var(--gold);color:#3a2a08;border-radius:6px;padding:2px 6px;}
+  body.lsc .lscTag{display:inline-block;}
+  .days{display:flex;gap:3px;margin-top:7px;background:rgba(255,255,255,.07);border-radius:10px;padding:3px;}
+  .days button{flex:1;border:none;background:transparent;color:#d9cfb8;font-size:12px;font-weight:700;padding:5px 9px;border-radius:7px;cursor:pointer;transition:background .15s,color .15s,transform .15s;}
+  .days button:hover{color:#fff;}
+  .days button.on{background:var(--gold);color:#2e2206;box-shadow:0 2px 8px rgba(232,200,106,.35);}
+  .dayLine{margin:6px 1px 0;font-size:11.5px;color:#cfc4ab;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px;}
+  .dayLine b{color:var(--gold);}
+  .topControls{pointer-events:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
+  .pill{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:8px 12px;font-size:12.5px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 4px 16px rgba(0,0,0,.3);white-space:nowrap;color:var(--txt);}
+  select.pill{appearance:none;-webkit-appearance:none;outline:none;cursor:pointer;padding-right:28px;max-width:190px;background-image:linear-gradient(45deg,transparent 50%,var(--gold) 50%),linear-gradient(135deg,var(--gold) 50%,transparent 50%);background-position:calc(100% - 16px) 50%,calc(100% - 11px) 50%;background-size:5px 5px;background-repeat:no-repeat;}
+  select.pill option,select.pill optgroup{color:#111;}
+  .iconBtn{pointer-events:auto;width:38px;height:38px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--txt);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 4px 16px rgba(0,0,0,.3);transition:transform .12s,background .12s;position:relative;}
+  .iconBtn:hover{background:rgba(60,52,40,.92);transform:translateY(-1px);}
+  .iconBtn:active{transform:scale(.95);}
+  .iconBtn.on{background:var(--gold);color:#2e2206;}
+  .iconBtn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+  body.lsc #lscBtn{background:var(--gold);color:#2e2206;}
+  .sideControls{position:absolute;right:12px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:8px;z-index:9;transition:top .3s;}
+  body.map-open .sideControls{top:calc((100% - var(--dockH)) / 2 + 30px);}
+
+  /* ---------- bottom nav ---------- */
+  .navCluster{position:absolute;left:50%;bottom:calc(16px + var(--dockH));transform:translateX(-50%);display:flex;align-items:center;gap:10px;pointer-events:none;z-index:9;transition:bottom .3s;}
+  .navBtn{pointer-events:auto;display:inline-flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);color:var(--txt);border-radius:999px;padding:12px 18px;font-size:14px;font-weight:700;cursor:pointer;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 6px 20px rgba(0,0,0,.4);transition:transform .12s,background .12s;user-select:none;-webkit-user-select:none;}
+  .navBtn:hover{background:rgba(70,58,38,.94);}
+  .navBtn:active{transform:scale(.95);}
+  .navBtn .arr{font-size:17px;color:var(--gold);}
+  .hint{position:absolute;left:50%;bottom:68px;transform:translateX(-50%);font-size:12px;opacity:.85;background:rgba(0,0,0,.45);border:1px solid var(--line);padding:5px 12px;border-radius:999px;pointer-events:none;white-space:nowrap;backdrop-filter:blur(6px);z-index:8;}
+  body.map-open .hint{display:none;}
+  .nearRoom{position:absolute;left:12px;bottom:calc(16px + var(--dockH));background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 12px;font-size:12.5px;backdrop-filter:blur(10px);box-shadow:0 4px 16px rgba(0,0,0,.3);pointer-events:none;z-index:8;transition:bottom .3s;max-width:46vw;}
+  .nearRoom b{color:var(--gold);}
+  .floorBtn{position:absolute;left:12px;bottom:calc(62px + var(--dockH));background:linear-gradient(180deg,#F1D383,#D9B356);color:#2e2206;border:0;border-radius:12px;padding:9px 13px;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.35);z-index:9;transition:bottom .3s,transform .15s;display:none;animation:bob 2.4s ease-in-out infinite;}
+  .floorBtn.show{display:block;}
+  .floorBtn:hover{transform:translateY(-2px);}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+  .fade{position:fixed;inset:0;background:#120e0a;opacity:0;pointer-events:none;transition:opacity .36s ease;z-index:45;display:flex;align-items:center;justify-content:center;color:#E8C86A;font-weight:800;font-size:16px;letter-spacing:.04em;}
+  .meow{position:fixed;pointer-events:none;font-weight:800;color:#fff;text-shadow:0 2px 6px rgba(0,0,0,.7);font-size:15px;z-index:40;white-space:nowrap;animation:meow 1.25s ease-out forwards;}
+  @keyframes meow{0%{opacity:0;transform:translate(-50%,0) scale(.6)}15%{opacity:1;transform:translate(-50%,-14px) scale(1.12)}100%{opacity:0;transform:translate(-50%,-70px) scale(1)}}
+  .fade.on{opacity:.94;pointer-events:auto;}
+  .floorSeg{display:inline-flex;background:rgba(255,255,255,.07);border:1px solid var(--line);border-radius:9px;overflow:hidden;}
+  .floorSeg button{border:0;background:transparent;color:#efe4cb;font-size:12px;font-weight:800;padding:6px 10px;cursor:pointer;}
+  .floorSeg button.on{background:var(--gold);color:#2e2206;}
+  .syncInfo{font-size:11.5px;margin:2px 0 10px;padding:6px 9px;border-radius:9px;background:#EFE9DA;color:#5b5140;display:flex;gap:6px;align-items:center;}
+  .syncInfo i{width:8px;height:8px;border-radius:50%;background:#9a9384;flex:none;}
+  .syncInfo.ok i{background:#3BA55C;} .syncInfo.busy i{background:#E0A526;} .syncInfo.bad i{background:#C2413A;}
+
+  /* ---------- hover tooltip ---------- */
+  .tip{position:absolute;z-index:20;pointer-events:none;background:rgba(20,17,14,.92);color:#FFF4DA;border:1px solid rgba(232,200,106,.35);font-size:12.5px;padding:6px 10px;border-radius:10px;white-space:nowrap;transform:translate(14px,14px);opacity:0;transition:opacity .12s;box-shadow:0 6px 18px rgba(0,0,0,.35);}
+  .tip.show{opacity:1;}
+  .tip small{display:block;color:#cdbf9f;font-size:11px;margin-top:1px;}
+
+  /* ---------- side panel (booth / room) ---------- */
+  .panel{position:absolute;right:12px;bottom:calc(12px + var(--dockH));width:340px;max-width:calc(100vw - 24px);max-height:calc(100% - 96px - var(--dockH));overflow:auto;background:var(--panel2);color:#1c1a17;border-radius:18px;box-shadow:0 18px 50px rgba(0,0,0,.5);padding:16px;transform:translateY(16px) scale(.98);opacity:0;pointer-events:none;transition:transform .22s ease,opacity .22s ease,bottom .3s;z-index:25;}
+  .panel.open{transform:none;opacity:1;pointer-events:auto;}
+  .pClose{position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:9px;border:none;background:#F1EBD9;color:#5c5344;font-size:18px;cursor:pointer;line-height:1;}
+  .pKicker{font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--maroon);}
+  .panel h2{margin:2px 34px 2px 0;font-size:19px;}
+  .panel .sub{font-size:12.5px;color:#6b6257;margin:0 0 10px;}
+  .badge{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:999px;background:#EFE9D8;color:#7A5A12;border:1px solid #E3D5A8;}
+  .badge.assigned{background:#E7F3E7;color:#1F6B2E;border-color:#BFE3BF;}
+  .badge.reserved{background:#E8EEFB;color:#2B4C9B;border-color:#C3D2F5;}
+  .badge.maintenance{background:#FBE9E9;color:#9B2B2B;border-color:#F2C4C4;}
+  .badge.taped{background:#FFF4C2;color:#7A5A12;border-color:#F0DC8A;}
+  .pView{margin-top:12px;display:grid;gap:8px;}
+  .pRow{background:#F7F2E4;border-radius:12px;padding:9px 11px;}
+  .pRow .k{display:block;font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#8a7d66;}
+  .pRow .v{display:block;font-size:14.5px;margin-top:2px;word-break:break-word;}
+  .pRow .v.big{font-size:18px;font-weight:800;}
+  .pRow .v.muted{color:#9a907d;font-style:italic;font-weight:500;}
+  .pRow.paperRow{background:#FFF1A8;transform:rotate(-1deg);box-shadow:0 3px 8px rgba(0,0,0,.12);position:relative;}
+  .pRow.paperRow .v{font-family:var(--hand);font-size:19px;font-weight:700;color:#1F2A44;}
+  .pLock{margin-top:12px;font-size:12.5px;color:#6b6257;display:flex;align-items:center;justify-content:space-between;gap:8px;background:#F1EBD9;border-radius:12px;padding:8px 10px;}
+  .pLock button{border:none;background:var(--maroon);color:#FFF3D6;border-radius:9px;padding:7px 11px;font-weight:700;font-size:12.5px;cursor:pointer;}
+  .field{margin:10px 0;}
+  .field label{display:block;font-size:11.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#7a6f5f;margin-bottom:5px;}
+  .field input[type=text],.field textarea,.field select{width:100%;border:1.5px solid #E2DCCB;border-radius:10px;padding:9px 11px;font-size:14px;font-family:inherit;background:#FFFDF6;color:#1c1a17;outline:none;}
+  .field input:focus,.field textarea:focus,.field select:focus{border-color:var(--gold2);box-shadow:0 0 0 3px rgba(201,162,39,.18);}
+  .field textarea{resize:vertical;min-height:52px;}
+  .swatches{display:flex;flex-wrap:wrap;gap:7px;margin-top:4px;}
+  .sw{width:28px;height:28px;border-radius:9px;border:2px solid rgba(0,0,0,.08);cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.15);padding:0;transition:transform .12s;}
+  .sw:hover{transform:scale(1.08);}
+  .sw.sel{border-color:#1c1a17;transform:scale(1.12);}
+  .sw.paper{border-radius:4px;transform:rotate(-4deg);}
+  .sw.paper.sel{transform:rotate(-4deg) scale(1.15);}
+  .colorRow{display:flex;align-items:center;gap:10px;}
+  .colorRow input[type=color]{width:42px;height:32px;border:1.5px solid #E2DCCB;border-radius:10px;background:#fff;padding:2px;cursor:pointer;}
+  .panelBtns{display:flex;gap:8px;margin-top:12px;}
+  .btn{flex:1;border:none;border-radius:11px;padding:11px 10px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;transition:transform .1s,background .15s;}
+  .btn.primary{background:var(--maroon);color:#FFF3D6;}
+  .btn.primary:hover{background:var(--maroon2);}
+  .btn.ghost{background:#F1EBD9;color:#5c5344;}
+  .btn:active{transform:scale(.97);}
+
+  /* ---------- 2D map dock ---------- */
+  .mapDock{position:absolute;left:0;right:0;bottom:0;height:min(44vh,360px);background:rgba(22,19,16,.96);border-top:1px solid rgba(232,200,106,.25);box-shadow:0 -12px 40px rgba(0,0,0,.45);transform:translateY(105%);transition:transform .32s cubic-bezier(.2,.8,.2,1);z-index:15;display:flex;flex-direction:column;}
+  body.map-open .mapDock{transform:none;}
+  .mapHead{display:flex;align-items:center;gap:12px;padding:8px 12px;flex-wrap:wrap;}
+  .mapTitle{font-weight:800;font-size:13.5px;color:#FFF3D6;white-space:nowrap;}
+  .mapTitle span{color:var(--gold);font-weight:700;margin-left:4px;}
+  .legend{display:flex;gap:10px;flex-wrap:wrap;font-size:11.5px;color:#d7ccb3;flex:1;}
+  .legend span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;}
+  .lg{display:inline-block;width:14px;height:10px;border-radius:3px;border:1.5px solid #9a958a;background:#fff;}
+  .lg.asg{background:#3BA55C;border-color:#1F6B2E;}
+  .lg.rsv{background:#7EA0F0;border-color:#2B4C9B;}
+  .lg.paper{background:#FFE680;border-color:#C9A227;transform:rotate(-8deg);border-radius:1px;}
+  .lg.you{width:11px;height:11px;border-radius:50%;background:var(--gold);border-color:var(--maroon);}
+  .mapBtns{display:flex;gap:6px;}
+  .chip{border:1px solid var(--line);background:rgba(255,255,255,.07);color:#efe4cb;border-radius:9px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;}
+  .chip:hover{background:rgba(255,255,255,.14);}
+  .chip.on{background:var(--gold);color:#2e2206;border-color:transparent;}
+  #mapSvg{flex:1;width:100%;min-height:0;display:block;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none;}
+  #mapSvg.panning{cursor:grabbing;}
+  #mapSvg [data-k]{cursor:pointer;}
+  #mapSvg text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;pointer-events:none;}
+  .mapFoot{font-size:11px;color:#a99d84;padding:4px 12px 7px;}
+
+  /* ---------- LSC sign-in + tools ---------- */
+  .modalWrap{position:absolute;inset:0;background:rgba(10,8,6,.55);display:none;align-items:center;justify-content:center;padding:16px;z-index:40;}
+  .modalWrap.open{display:flex;}
+  .modal{background:var(--panel2);color:#1c1a17;border-radius:18px;max-width:360px;width:100%;padding:20px;box-shadow:0 24px 60px rgba(0,0,0,.55);}
+  .modal h2{margin:6px 0 4px;font-size:19px;}
+  .modal p{font-size:13.5px;color:#6b6257;line-height:1.5;margin:0 0 10px;}
+  .modal input[type=password]{width:100%;border:1.5px solid #E2DCCB;border-radius:11px;padding:11px 12px;font-size:15px;background:#FFFDF6;outline:none;}
+  .modal input[type=password]:focus{border-color:var(--gold2);box-shadow:0 0 0 3px rgba(201,162,39,.18);}
+  .modal .err{color:#9B2B2B;font-size:12.5px;min-height:18px;margin:6px 0 0;}
+  .modalRow{display:flex;gap:8px;margin-top:10px;}
+  .lscBadge{display:inline-block;background:var(--maroon);color:var(--gold);font-weight:800;font-size:11px;letter-spacing:.12em;padding:4px 9px;border-radius:7px;}
+  .shake{animation:shake .4s;}
+  @keyframes shake{20%,60%{transform:translateX(-7px);}40%,80%{transform:translateX(7px);}}
+  .lscMenu{position:absolute;top:60px;right:12px;width:280px;background:var(--panel2);color:#1c1a17;border-radius:16px;box-shadow:0 18px 50px rgba(0,0,0,.5);padding:14px;z-index:30;display:none;}
+  .lscMenu.open{display:block;animation:pop .18s ease;}
+  @keyframes pop{from{transform:translateY(-6px) scale(.97);opacity:0;}}
+  .lmHead{display:flex;align-items:center;justify-content:space-between;font-size:14px;margin-bottom:8px;}
+  .lmHead span{font-size:11px;font-weight:800;background:var(--gold);color:#2e2206;border-radius:6px;padding:2px 7px;}
+  .lmLbl{display:block;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#7a6f5f;margin:4px 0 4px;}
+  .lscMenu input[type=text]{width:100%;border:1.5px solid #E2DCCB;border-radius:10px;padding:8px 10px;font-size:13.5px;background:#FFFDF6;outline:none;margin-bottom:8px;}
+  .lmBtn{display:block;width:100%;text-align:left;border:none;background:#F4EFE1;color:#3a3329;border-radius:10px;padding:9px 11px;font-size:13px;font-weight:700;cursor:pointer;margin-top:6px;}
+  .lmBtn:hover{background:#ECE4CF;}
+  .lmBtn.danger{color:#9B2B2B;}
+  .lmNote{font-size:11.5px;color:#7a6f5f;line-height:1.45;margin:10px 2px 0;}
+
+  /* ---------- toast + confetti + loader ---------- */
+  .toast{position:absolute;left:50%;top:84px;transform:translateX(-50%) translateY(-8px);background:#1F2A1F;color:#EAF7EA;border:1px solid rgba(255,255,255,.18);padding:9px 16px;border-radius:999px;font-size:13.5px;font-weight:700;opacity:0;pointer-events:none;transition:all .25s;z-index:50;box-shadow:0 8px 24px rgba(0,0,0,.4);white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  #confetti{position:absolute;inset:0;pointer-events:none;z-index:48;}
+  .loader{position:absolute;inset:0;background:#141210;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:60;transition:opacity .5s;}
+  .loader.hide{opacity:0;pointer-events:none;}
+  .loader .spin{width:44px;height:44px;border-radius:50%;border:4px solid rgba(232,200,106,.25);border-top-color:var(--gold);animation:sp .9s linear infinite;}
+  @keyframes sp{to{transform:rotate(360deg);}}
+  .loader p{margin:0;font-size:13px;letter-spacing:.08em;text-transform:uppercase;opacity:.8;}
+  .kbd{font-size:11px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:5px;padding:1px 6px;}
+
+  /* ---------- welcome letter ---------- */
+  .intro{position:absolute;inset:0;z-index:45;display:none;align-items:center;justify-content:center;flex-direction:column;gap:22px;background:radial-gradient(ellipse at center,rgba(46,32,20,.5),rgba(10,8,6,.8));padding:16px;}
+  .intro.show{display:flex;animation:fadeIn .45s ease;}
+  @keyframes fadeIn{from{opacity:0;}}
+  .envelope{position:relative;width:310px;height:200px;cursor:pointer;transition:transform .6s ease,opacity .45s ease;filter:drop-shadow(0 20px 30px rgba(0,0,0,.5));animation:bob 2.8s ease-in-out infinite;perspective:900px;}
+  @keyframes bob{50%{transform:translateY(-7px) rotate(-1deg);}}
+  .envBack{position:absolute;inset:0;background:#cdb282;border-radius:6px;}
+  .envPeek{position:absolute;left:16px;right:16px;top:12px;height:168px;background:#fbf6ea repeating-linear-gradient(transparent 0 15px,rgba(70,110,170,.15) 15px 16px);border-radius:3px;transition:transform .6s cubic-bezier(.2,.8,.2,1) .2s;}
+  .envFront{position:absolute;inset:0;background:linear-gradient(160deg,#ead7af,#dcc293);clip-path:polygon(0 0,50% 56%,100% 0,100% 100%,0 100%);border-radius:6px;}
+  .envFront:after{content:"to: you ♡";position:absolute;right:26px;bottom:20px;font-family:var(--hand);color:#6b4b2a;font-size:15px;opacity:.75;}
+  .envFlap{position:absolute;left:0;right:0;top:0;height:58%;background:linear-gradient(180deg,#e4cd9f,#d6bb88);clip-path:polygon(0 0,100% 0,50% 100%);transform-origin:top;transition:transform .5s ease;z-index:3;}
+  .seal{position:absolute;left:50%;top:56%;transform:translate(-50%,-50%);z-index:4;width:64px;height:64px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#b8404e,#6e1a28 72%);color:#f3d27a;font:800 15px Georgia,serif;letter-spacing:.06em;border:none;box-shadow:0 4px 10px rgba(0,0,0,.35),inset 0 0 0 5px rgba(255,255,255,.07);cursor:pointer;transition:transform .3s;}
+  .seal:before{content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid rgba(232,200,106,.55);animation:ring 1.8s ease-out infinite;}
+  @keyframes ring{from{transform:scale(.9);opacity:1;}to{transform:scale(1.35);opacity:0;}}
+  .introHint{margin:0;color:#efe2c4;font-size:14px;letter-spacing:.02em;transition:opacity .3s;}
+  .introHint b{color:var(--gold);}
+  .intro.opening .envelope{animation:none;}
+  .intro.opening .envFlap{transform:rotateX(180deg);z-index:0;}
+  .intro.opening .seal{transform:translate(-50%,-50%) scale(0);}
+  .intro.opening .envPeek{transform:translateY(-78px);}
+  .intro.opening .introHint{opacity:0;}
+  .intro.reading .envelope{transform:translateY(160px) scale(.8);opacity:0;pointer-events:none;}
+  .paper{position:absolute;width:min(430px,92vw);max-height:88vh;overflow:auto;color:#2b2620;font-family:Georgia,"Times New Roman",serif;font-size:15px;line-height:28px;
+    background:linear-gradient(90deg,transparent 30px,rgba(200,70,70,.28) 30px 31.5px,transparent 31.5px),repeating-linear-gradient(transparent 0 27px,rgba(70,110,170,.15) 27px 28px),#fbf6ea;
+    background-position:0 10px;padding:30px 28px 18px 44px;border-radius:3px;box-shadow:0 30px 70px rgba(0,0,0,.55);transform:translateY(80px) scale(.45) rotate(-3deg);opacity:0;pointer-events:none;transition:transform .65s cubic-bezier(.2,.9,.25,1.12),opacity .35s;}
+  .intro.reading .paper{transform:rotate(-.7deg);opacity:1;pointer-events:auto;}
+  .tape{position:absolute;top:-2px;width:96px;height:24px;background:rgba(236,224,186,.86);box-shadow:0 1px 3px rgba(0,0,0,.15);}
+  .tape.l{left:18px;transform:rotate(-8deg);} .tape.r{right:18px;transform:rotate(7deg);}
+  .paper .date{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#8a7d66;text-align:right;margin:0;}
+  .paper .hello{font-family:var(--hand);font-size:22px;margin:4px 0 0;color:#1F2A44;}
+  .paper p{margin:0 0 0;}
+  .paper p + p{margin-top:0;}
+  .paper .gap{height:14px;}
+  .paper .sign{text-align:right;margin-top:6px;}
+  .paper .sign span{display:block;font-family:var(--hand);font-size:24px;color:var(--maroon);transform:rotate(-3deg);margin-top:4px;}
+  .paper .ps{font-size:13.5px;color:#5d5446;font-style:italic;}
+  .paper .foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.3;}
+  .paper .foot label{font-size:12px;color:#7a6f5f;display:flex;align-items:center;gap:6px;cursor:pointer;}
+  .stampBtn{border:2px solid var(--maroon);color:var(--maroon);background:transparent;font-weight:800;font-size:13.5px;letter-spacing:.06em;text-transform:uppercase;padding:9px 14px;border-radius:8px;cursor:pointer;transform:rotate(-2deg);transition:transform .15s,background .15s,color .15s;}
+  .stampBtn:hover{background:var(--maroon);color:#FFF3D6;transform:rotate(0) scale(1.03);}
+
+  @media (max-width:700px){
+    .topbar{padding:10px;}
+    .brand{padding:7px 9px;}
+    .brand h1{font-size:14.5px;}
+    .days button{font-size:11.5px;padding:5px 7px;}
+    .dayLine{max-width:52vw;font-size:11px;}
+    select.pill{max-width:126px;font-size:12px;padding:8px 26px 8px 10px;}
+    .iconBtn{width:36px;height:36px;}
+    .sideControls{top:auto;bottom:calc(150px + var(--dockH));transform:none;}
+    body.map-open .sideControls{top:auto;}
+    .panel{left:10px;right:10px;width:auto;bottom:10px;max-height:60vh;}
+    .nearRoom{bottom:auto;top:148px;left:10px;font-size:11.5px;padding:6px 9px;}
+    body.map-open .nearRoom{display:none;}
+    .floorBtn{bottom:auto;top:184px;left:10px;font-size:12px;padding:7px 11px;}
+    body.map-open .floorBtn{top:184px;}
+    .hint{display:none;}
+    .navBtn{padding:12px 16px;}
+    .mapDock{height:52vh;}
+    .legend{display:none;}
+    .lscMenu{right:10px;left:10px;width:auto;top:116px;}
+  }
+  @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;}}
+</style>
+</head>
+<body>
+<noscript><p style="position:fixed;inset:0;z-index:100;background:#141210;padding:24px">JavaScript and WebGL are required to explore Mendoza Hall. Enable JavaScript and reload.</p></noscript>
+<div id="app">
+  <div id="viewport" aria-label="Mendoza Hall immersive hallway viewer"></div>
+  <div class="vignette"></div>
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="brandRow">
+        <h1 id="brandTitle" title="Read the welcome letter again">Mendoza <span>Hall</span></h1>
+        <span class="lscTag" title="Signed in as CSSP LSC">LSC</span>
+      </div>
+      <div class="days" id="days" role="tablist" aria-label="Event day">
+        <button data-day="1" class="on" role="tab">Day 1</button>
+        <button data-day="2" role="tab">Day 2</button>
+        <button data-day="3" role="tab">Day 3</button>
+      </div>
+      <p class="dayLine"><span id="dayTitleTxt">Booth placement</span> · <span id="availLine">—</span></p>
+    </div>
+    <div class="topControls">
+      <select id="roomSelect" class="pill" aria-label="Go to a room or organization"><option value="">Go to…</option></select>
+      <button class="iconBtn" id="mapBtn" aria-label="Toggle 2D map" title="2D map (M)">
+        <svg viewBox="0 0 24 24"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg>
+      </button>
+      <button class="iconBtn" id="lscBtn" aria-label="CSSP LSC sign-in" title="CSSP LSC sign-in">
+        <svg viewBox="0 0 24 24" id="lockIcon"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="sideControls">
+    <button class="iconBtn" id="zoomIn" aria-label="Zoom in" title="Zoom in"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button class="iconBtn" id="zoomOut" aria-label="Zoom out" title="Zoom out"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+    <button class="iconBtn" id="resetBtn" aria-label="Reset view" title="Reset view"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></button>
+    <button class="iconBtn" id="fsBtn" aria-label="Fullscreen" title="Fullscreen"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+  </div>
+
+  <div class="hint">Drag to look &nbsp;•&nbsp; <span class="kbd">W</span>/<span class="kbd">S</span> to walk &nbsp;•&nbsp; Tap tables &amp; doors &nbsp;•&nbsp; <span class="kbd">M</span> map</div>
+  <div class="navCluster">
+    <button class="navBtn" id="backBtn"><span class="arr">↓</span> Back</button>
+    <button class="navBtn" id="fwdBtn">Forward <span class="arr">↑</span></button>
+  </div>
+  <div class="nearRoom" id="nearRoom">📍 Start of hallway</div>
+  <button class="floorBtn" id="floorBtn">⬆ 2F · Room 214–215</button>
+  <div class="tip" id="tip"></div>
+
+  <!-- Booth / room panel -->
+  <div class="panel" id="panel" role="dialog" aria-label="Details">
+    <button class="pClose" id="pClose" aria-label="Close">×</button>
+    <div class="pKicker" id="pKicker">Booth</div>
+    <h2 id="pTitle">—</h2>
+    <p class="sub" id="pSub">—</p>
+    <span class="badge" id="pBadge">Available</span>
+    <div class="pView" id="pView"></div>
+
+    <div id="boothEdit" hidden>
+      <div class="field"><label for="fOrg">Organization</label><input type="text" id="fOrg" placeholder="e.g. Psychology Society" maxlength="60"></div>
+      <div class="field"><label for="fRep">Representative</label><input type="text" id="fRep" placeholder="Name of representative" maxlength="60"></div>
+      <div class="field"><label for="fDesc">Description</label><input type="text" id="fDesc" placeholder="What's at this booth?" maxlength="90"></div>
+      <div class="field"><label for="fNotes">LSC notes <span style="text-transform:none;font-weight:600;color:#a39780">(only LSC sees this)</span></label><textarea id="fNotes" placeholder="Setup notes, power outlet, etc." maxlength="300"></textarea></div>
+      <div class="field"><label>Tablecloth</label>
+        <div class="colorRow"><div class="swatches" id="swatches"></div><input type="color" id="fColor" value="#F8FAFC" title="Custom color"></div>
+      </div>
+      <div class="field"><label for="fStatus">Status</label>
+        <select id="fStatus">
+          <option value="available">Available</option>
+          <option value="assigned">Assigned</option>
+          <option value="reserved">Reserved</option>
+          <option value="maintenance">Not available</option>
+        </select>
+      </div>
+      <div class="panelBtns"><button class="btn primary" id="bpSave">Save booth</button><button class="btn ghost" id="bpClear">Clear</button></div>
+    </div>
+
+    <div id="roomEdit" hidden>
+      <div class="field"><label for="rFor">Reserved for</label><input type="text" id="rFor" placeholder="e.g. Philosophy Circle — Workshop" maxlength="48"></div>
+      <div class="field"><label for="rNote">Little note on the paper</label><input type="text" id="rNote" placeholder="e.g. 1–3 PM · please knock!" maxlength="60"></div>
+      <div class="field"><label>Paper color</label><div class="swatches" id="paperSwatches"></div></div>
+      <div class="panelBtns"><button class="btn primary" id="rSave">📌 Tape it on the door</button><button class="btn ghost" id="rClear">Peel off</button></div>
+    </div>
+
+    <div class="pLock" id="pLock"><span>🔒 Only CSSP LSC can edit this.</span><button id="pSignIn">Sign in</button></div>
+  </div>
+
+  <!-- 2D map -->
+  <div class="mapDock" id="mapDock" aria-label="Hallway map">
+    <div class="mapHead">
+      <div class="mapTitle">🗺️ Map <span id="mapDay">Day 1</span></div>
+      <div class="floorSeg" role="group" aria-label="Floor"><button id="mapF1" class="on">1F</button><button id="mapF2">2F</button></div>
+      <div class="legend">
+        <span><i class="lg"></i>Open table</span>
+        <span><i class="lg asg"></i>Assigned</span>
+        <span><i class="lg rsv"></i>Reserved</span>
+        <span><i class="lg paper"></i>Room reserved</span>
+        <span><i class="lg you"></i>You</span>
+        <span>🐈 Kitties</span>
+      </div>
+      <div class="mapBtns">
+        <button class="chip on" id="mapFollow" title="Keep the map centered on you">Follow me</button>
+        <button class="chip" id="mapFit" title="Show the whole hallway">Fit</button>
+        <button class="chip" id="mapZin" aria-label="Zoom map in">+</button>
+        <button class="chip" id="mapZout" aria-label="Zoom map out">−</button>
+        <button class="chip" id="mapClose" aria-label="Close map">✕</button>
+      </div>
+    </div>
+    <svg id="mapSvg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" aria-label="Top-down map of the hallway"></svg>
+    <div class="mapFoot">Tap a room, table or stairs to jump there · tap the hallway to walk · drag to pan · pinch or scroll to zoom</div>
+  </div>
+
+  <!-- LSC sign-in -->
+  <div class="modalWrap" id="lscWrap">
+    <div class="modal" id="lscModal" role="dialog" aria-label="CSSP LSC sign-in">
+      <span class="lscBadge">CSSP LSC</span>
+      <h2>Organizer sign-in</h2>
+      <p>Only the CSSP LSC can assign booths and tape room reservations. Everyone else can explore and look around.</p>
+      <input type="password" id="lscPass" placeholder="Passcode" autocomplete="current-password">
+      <p class="err" id="lscErr"></p>
+      <div class="modalRow"><button class="btn ghost" id="lscCancel">Cancel</button><button class="btn primary" id="lscGo">Unlock</button></div>
+    </div>
+  </div>
+  <div class="lscMenu" id="lscMenu">
+    <div class="lmHead"><b>CSSP LSC tools</b><span id="lmDay">Day 1</span></div>
+    <div class="syncInfo" id="syncInfo"><i></i><span>Checking database…</span></div>
+    <label class="lmLbl" for="dayTitle">What's happening this day?</label>
+    <input type="text" id="dayTitle" maxlength="48" placeholder="e.g. Org Fair & Opening">
+    <button class="lmBtn" id="exportBtn">⬇️ Download assignments.json</button>
+    <button class="lmBtn" id="importBtn">⬆️ Import a saved file</button>
+    <button class="lmBtn danger" id="resetDayBtn">🧹 Clear this day</button>
+    <button class="lmBtn" id="signOutBtn">🔓 Sign out</button>
+    <p class="lmNote" id="lmNote">Confirmed changes are shared with everyone. The view refreshes every 15 seconds.</p>
+    <input type="file" id="importFile" accept=".json,application/json" hidden>
+  </div>
+
+  <!-- Welcome letter -->
+  <div class="intro" id="intro" role="dialog" aria-label="Welcome letter">
+    <div class="envelope" id="envelope" title="Open the letter">
+      <div class="envBack"></div>
+      <div class="envPeek"></div>
+      <div class="envFront"></div>
+      <div class="envFlap"></div>
+      <button class="seal" id="seal" aria-label="Open the letter">LSC</button>
+    </div>
+    <p class="introHint" id="introHint">You've got mail ✉️ — <b>tap the seal</b></p>
+    <div class="paper" id="paper">
+      <i class="tape l"></i><i class="tape r"></i>
+      <p class="date">Mendoza Hall · <span id="letterDay">Day 1</span></p>
+      <p class="hello">Dear explorer,</p>
+      <p>Welcome to <b>Mendoza Hall</b>, the <i>“pinakamahabang”</i> hallway! Take a slow walk with us. Peek at the rooms, find the booths, and see who's setting up where on <b>Day 1, 2 &amp; 3</b>.</p>
+      <p>Drag to look around, tap <b>Forward</b> to walk, and open the <b>map</b> if you ever get lost.</p>
+      <p class="sign">See you in the hallway,<span>— CSSP LSC</span></p>
+      <p class="ps">P.S. Tap any table or door, someone might have left a note 📌 — and say hi to the hallway kitties 🐈</p>
+      <div class="foot">
+        <label><input type="checkbox" id="introHide"> Don't show again</label>
+        <button class="stampBtn" id="introGo">Let's go →</button>
+      </div>
+    </div>
+  </div>
+
+  <canvas id="confetti"></canvas>
+  <div class="toast" id="toast"></div>
+  <div class="fade" id="fade">🪜 Taking the stairs…</div>
+  <div class="loader" id="loader"><div class="spin"></div><p>Entering Mendoza Hall…</p></div>
+</div>
+<script>/*__THREE_INLINE__*/</script>
+<script>
+/*__APP_INLINE__*/
+</script>
+</body>
+</html>

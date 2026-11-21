@@ -1,5 +1,6 @@
--- Required: run this entire idempotent migration in the Neon SQL Editor before deployment.
--- The application deliberately does not run DDL during requests.
+-- Optional manual setup: the API also runs these additive statements on a missing-table error.
+-- Existing tables and assignments are never dropped, altered, cleared or overwritten.
+-- Runtime setup uses a transaction and advisory lock; see lib/setup.js.
 CREATE TABLE IF NOT EXISTS public.event_days (
   day smallint PRIMARY KEY CHECK (day BETWEEN 1 AND 3),
   title text NOT NULL DEFAULT '',

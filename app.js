@@ -2,6 +2,9 @@
    Shared assignments are only changed after the server confirms a write.
    Private organizer notes and session tokens are NEVER stored in localStorage. */
 import {ROOMS,DAYS,LAYOUT,STATUSES,DEFAULT_COLOR,PAPER_COLORS,blankState,cleanBooth,cleanRoom,cleanImport,publicState} from './lib/model.js';
+import {iconLabel,ICON_PATHS} from './lib/icons.js';
+import {createCatWorld,catDistance,catAvailability,actOnCat,rollToy,updateCatWorld,catMood,friendship,stopCompanion} from './lib/cats.js';
+import {buildCatVisuals,poseCat,makeYarnToy,catPortraitMarkup} from './lib/cat-view.js';
 (() => {
 'use strict';
 const $=id=>document.getElementById(id), CACHE='mendoza_public_cache_v4', DEMO='mendoza_demo_v4';
@@ -14,10 +17,12 @@ let selection=null,dirty=false,paperPick=PAPER_COLORS[0],mapOpen=false,mapFloor=
 let scene,camera,renderer,hallGroups={},floorMeshes={},boothMeshes={},papers={},roomHL,raycaster,pointer,targets=[],cats=[];
 let cam={z:H.start,yaw:0,pitch:0,fov:68},goal={...cam},walk=0,keyWalk=0,tween=null,last=performance.now(),floorBusy=false,toastTimer;
 let demo=false,authLoading=false,refreshTimer,requestId=0,connectionError=null;
+const catWorld=createCatWorld(),reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
+let selectedCat=0,catsOpen=false,yarnToy,lastCatUI='',lastNear='',lastCompanion='',mapCatMarkers=new Map();
 const emptyBooth=()=>({org:'',rep:'',description:'',notes:'',color:DEFAULT_COLOR,status:'available'});
 const booth=id=>({...emptyBooth(),...state.days[day].booths[id]});
 const reservation=id=>state.days[day].rooms[id]||{reservedFor:'',note:'',paper:PAPER_COLORS[0]};
-function toast(message){$('toast').textContent=message;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),4200);}
+function toast(message){iconLabel($('toast'),'info',message);$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),4200);}
 function sync(kind,message){$('syncInfo').className=`syncInfo ${kind}`;$('syncInfo').lastElementChild.textContent=message;$('lmNote').textContent=message;let badge=$('connection');if(!badge){badge=document.createElement('p');badge.id='connection';badge.style.cssText='margin:5px 0 0;font-size:11px;max-width:240px';$('availLine').parentElement.after(badge);}badge.textContent=message;badge.style.color=kind==='bad'?'#ffb4a9':kind==='ok'?'#c6e9ae':'#E8C86A';}
 function connectionMessage(error){
   if(!error)return 'Checking database connection and schema…';
@@ -188,7 +193,7 @@ function buildCorridor(f){
 }
 function buildStairs(group,f,z,active){
   box(.2,.7,3.2,mats.yellow,group,-2.3,2.85,z);
-  const sg=sign(f===2?'STAIRS ↓ 1ST FLOOR':active?'STAIRS ↑ ROOM 214–215':'STAIRS ↑ 2ND FLOOR',group,-2.17,2.78,z,2.1,.36);
+  const sg=sign(f===2?'STAIRS TO 1ST FLOOR':active?'STAIRS TO ROOM 214–215':'STAIRS TO 2ND FLOOR',group,-2.17,2.78,z,2.1,.36);
   if(active){sg.userData={type:'stairs',id:f===2?1:2,floor:f};targets.push(sg);}
   const mat=material('#D9D5CC',.5);box(5.5,.12,3.2,mat,group,-4.95,-.06,z);
   for(const side of [-1,1])box(5.6,6.6,.2,mats.yellow,group,-4.95,3.3,z+side*1.7);
@@ -227,19 +232,10 @@ function buildBooths(){
   }
 }
 function buildCats(){
-  const defs=[['Mingming','#D9893B',1,3],['Muning','#2B2826',1,-19],['Kuting','#8D8C8A',1,-41],['Tisay','#EFEAE0',1,-62],['Pancake','#F1ECE2',1,-83],['Bantay','#6E6862',1,-112],['Mochi','#E9D3AE',2,-3.5]];
-  defs.forEach(([name,color,f,z],index)=>{
-    const g=new T.Group(),fur=material(color),pink=material('#E58C9A'),dark=material('#141210');scene.add(g);
-    const body=mesh(new T.SphereGeometry(1,12,8),fur,g,0,.22,0);body.scale.set(.12,.11,.22);
-    const head=mesh(new T.SphereGeometry(.085,12,8),fur,g,0,.32,.21);
-    for(const side of [-1,1]){const ear=mesh(new T.ConeGeometry(.035,.075,4),fur,g,side*.047,.39,.205);ear.rotation.z=-side*.3;mesh(new T.SphereGeometry(.014,7,5),dark,g,side*.033,.33,.283);}
-    mesh(new T.SphereGeometry(.012,7,5),pink,g,0,.303,.298);
-    const legs=[];for(const x of [-.06,.06])for(const dz of [-.12,.12])legs.push(mesh(new T.CylinderGeometry(.022,.018,.15,6),fur,g,x,.08,dz));
-    const tail=mesh(new T.CylinderGeometry(.014,.022,.3,6),fur,g,0,.3,-.28);tail.rotation.x=-.8;
-    g.traverse(p=>{if(p.isMesh){p.userData={type:'cat',id:index,floor:f};targets.push(p);}});
-    cats.push({g,name,f,z,x:(Math.random()-.5)*.8,target:z,heading:0,next:0,phase:Math.random()*6,legs,tail,pet:0});
-  });
+  cats=buildCatVisuals(T,{scene,material,mesh,targets}).map((visual,id)=>({...visual,model:catWorld.cats[id],f:catWorld.cats[id].floor}));
+  yarnToy=makeYarnToy(T,scene);
 }
+
 function buildScene(){
   scene=new T.Scene();scene.background=new T.Color('#C9CDD0');scene.fog=new T.Fog('#B9B2A0',22,150);
   camera=new T.PerspectiveCamera(68,innerWidth/innerHeight,.1,400);camera.rotation.order='YXZ';
@@ -275,14 +271,14 @@ function refresh(forceForm=false){
   for(const b of document.querySelectorAll('#days button')){const on=b.dataset.day===day;b.classList.toggle('on',on);b.setAttribute('aria-selected',String(on));}
   $('lmDay').textContent=`Day ${day}`;$('letterDay').textContent=`Day ${day}`;$('mapDay').textContent=`Day ${day}`;
   if(document.activeElement!==$('dayTitle'))$('dayTitle').value=state.days[day].title;
-  const options=[new Option('Go to…','')];for(const r of ROOMS)options.push(new Option(`${r.name}${r.floor===2?' (2F)':''}${reservation(r.id).reservedFor?' 📌':''}`,`room:${r.id}`));for(const L of LAYOUT){const b=booth(L.id);if(b.org)options.push(new Option(`${b.org} · ${L.id}`,`booth:${L.id}`));}$('roomSelect').replaceChildren(...options);
+  const options=[new Option('Go to…','')];for(const r of ROOMS)options.push(new Option(`${r.name}${r.floor===2?' (2F)':''}${reservation(r.id).reservedFor?' (reserved)':''}`,`room:${r.id}`));for(const L of LAYOUT){const b=booth(L.id);if(b.org)options.push(new Option(`${b.org} · ${L.id}`,`booth:${L.id}`));}const companions=document.createElement('optgroup');companions.label='Hallway companions';for(const c of catWorld.cats)companions.append(new Option(`${c.name} · ${c.floor}F`,`cat:${c.id}`));$('roomSelect').replaceChildren(...options,companions);
   if(!dirty||forceForm)renderPanel();if(mapOpen)renderMap();setControls();
 }
 
 /* ---------- Panels and confirmed editing ---------- */
 function row(label,value){const wrap=document.createElement('div');wrap.className='pRow';const k=document.createElement('span'),v=document.createElement('span');k.className='k';v.className='v';k.textContent=label;v.textContent=value;wrap.append(k,v);return wrap;}
 function discard(){return !dirty||confirm('Discard the unsaved form changes?');}
-function select(type,id,fly=false){if(!discard())return;dirty=false;selection={type,id};$('panel').classList.add('open');renderPanel();if(fly)goTo(type,id);}
+function select(type,id,fly=false){if(!discard())return;closeCats(false);dirty=false;selection={type,id};$('panel').classList.add('open');renderPanel();if(fly)goTo(type,id);}
 function closePanel(){if(!discard())return;dirty=false;selection=null;$('panel').classList.remove('open');highlight();}
 function highlight(){for(const [id,m] of Object.entries(boothMeshes))m.ring.visible=selection?.type==='booth'&&selection.id===id&&byId[id].floor===floor;roomHL.visible=selection?.type==='room'&&roomById[selection.id].floor===floor;if(roomHL.visible){const r=roomById[selection.id];roomHL.position.set(-2.02,floors[floor].y+1.2,r.z+.85);}}
 function swatches(id,palette,active,choose){$(id).replaceChildren(...palette.map(c=>{const b=document.createElement('button');b.type='button';b.className=`sw${id==='paperSwatches'?' paper':''}${c===active?' sel':''}`;b.style.background=c;b.setAttribute('aria-label',`Color ${c}`);b.onclick=()=>{dirty=true;choose(c);swatches(id,palette,c,choose);};return b;}));}
@@ -294,28 +290,104 @@ function renderPanel(){
     if(isLSC){$('boothEdit').hidden=false;for(const [field,key] of [['fOrg','org'],['fRep','rep'],['fDesc','description'],['fNotes','notes'],['fColor','color'],['fStatus','status']])$(field).value=b[key]||'';swatches('swatches',colors,b.color,c=>{$('fColor').value=c;boothMeshes[id].cloth.color.set(c);});}
     else{view.append(row('Organization',b.org||'No organization yet'));if(b.rep)view.append(row('Representative',b.rep));if(b.description)view.append(row('About',b.description));}
   }else{
-    const r=roomById[id],rd=reservation(id);$('pKicker').textContent=`Room · ${r.floor}F · Day ${day}`;$('pTitle').textContent=r.name;$('pSub').textContent=r.floor===2?'Take the first stairs to the second floor':'Door on the room side of the hallway';$('pBadge').textContent=rd.reservedFor?'📌 Reserved':'Not reserved';$('pBadge').className=`badge ${rd.reservedFor?'taped':''}`;
+    const r=roomById[id],rd=reservation(id);$('pKicker').textContent=`Room · ${r.floor}F · Day ${day}`;$('pTitle').textContent=r.name;$('pSub').textContent=r.floor===2?'Take the first stairs to the second floor':'Door on the room side of the hallway';iconLabel($('pBadge'),rd.reservedFor?'pin':'info',rd.reservedFor?'Reserved':'Not reserved');$('pBadge').className=`badge ${rd.reservedFor?'taped':''}`;
     if(isLSC){$('roomEdit').hidden=false;$('rFor').value=rd.reservedFor;$('rNote').value=rd.note;paperPick=rd.paper;swatches('paperSwatches',PAPER_COLORS,paperPick,c=>{paperPick=c;});}else{view.append(row('Reserved for',rd.reservedFor||'Nobody yet'));if(rd.note)view.append(row('Note',rd.note));}
   }setControls();
 }
 async function saveBooth(){if(selection?.type!=='booth'||!isLSC)return;const id=selection.id,d=day;try{const data=cleanBooth({org:$('fOrg').value,rep:$('fRep').value,description:$('fDesc').value,notes:$('fNotes').value,color:$('fColor').value,status:$('fStatus').value});if(await mutate('PUT',`booths/${d}/${encodeURIComponent(id)}`,data,`Saved booth ${id}`))confetti();}catch(e){toast(e.message);}}
-async function saveRoom(){if(selection?.type!=='room'||!isLSC)return;try{const data=cleanRoom({reservedFor:$('rFor').value,note:$('rNote').value,paper:paperPick});if(!data.reservedFor){toast('Write who the room is reserved for first.');return;}if(await mutate('PUT',`rooms/${day}/${encodeURIComponent(selection.id)}`,data,'📌 Reservation saved'))confetti();}catch(e){toast(e.message);}}
+async function saveRoom(){if(selection?.type!=='room'||!isLSC)return;try{const data=cleanRoom({reservedFor:$('rFor').value,note:$('rNote').value,paper:paperPick});if(!data.reservedFor){toast('Write who the room is reserved for first.');return;}if(await mutate('PUT',`rooms/${day}/${encodeURIComponent(selection.id)}`,data,'Reservation saved'))confetti();}catch(e){toast(e.message);}}
 function setDay(d){if(busy||!DAYS.includes(d)||!discard())return;dirty=false;day=d;try{localStorage.setItem('mendoza_day',day);}catch{}refresh(true);toast(`Day ${day}`);}
+
+/* ---------- Hallway companions: real behavior, not a toast-only interaction ---------- */
+function catPlayer(){return {floor,z:cam.z,yaw:cam.yaw};}
+function openCats(id){
+  if(!discard())return false;
+  dirty=false;if(selection){selection=null;$('panel').classList.remove('open');highlight();}
+  if(mapOpen)toggleMap(false);
+  if(id===undefined)id=catWorld.cats.filter(c=>c.floor===floor).sort((a,b)=>catDistance(a,catPlayer())-catDistance(b,catPlayer()))[0]?.id??0;
+  if(!catWorld.cats[id])return false;
+  selectedCat=id;catsOpen=true;$('catPanel').hidden=false;$('catsBtn').setAttribute('aria-expanded','true');
+  const cat=catWorld.cats[id];
+  // Portrait markup comes exclusively from the built-in, fixed cat definitions.
+  $('catPortrait').innerHTML=catPortraitMarkup(id);$('catName').textContent=cat.name;$('catTemperament').textContent=cat.temperament;$('catTrait').textContent=cat.trait;
+  $('catReaction').textContent=cat.floor!==floor?`${cat.name} is waiting on ${cat.floor}F. Take the stairs to say hello.`:'Come a little closer. Friendships start with hello.';
+  for(const b of $('catRoster').children)b.setAttribute('aria-pressed',String(Number(b.dataset.cat)===id));
+  lastCatUI='';updateCatPanel();return true;
+}
+function closeCats(restoreFocus=true){catsOpen=false;$('catPanel').hidden=true;$('catsBtn').setAttribute('aria-expanded','false');for(const v of cats)v.halo.visible=false;if(restoreFocus)$('catsBtn').focus({preventScroll:true});}
+function visitCat(){
+  const cat=catWorld.cats[selectedCat];if(!cat||floorBusy)return;
+  if(['walking','idle','sitting'].includes(cat.mode)){cat.mode='sitting';cat.until=catWorld.time+8;}
+  changeFloor(cat.floor,()=>{
+    let z=clamp(cat.z+1.8);if(Math.abs(z-cat.z)<1)z=clamp(cat.z-1.8);
+    let yaw=Math.atan2(-cat.x,z-cat.z);while(yaw-cam.yaw>Math.PI)yaw-=2*Math.PI;while(yaw-cam.yaw<-Math.PI)yaw+=2*Math.PI;
+    moveTo(z,yaw,-Math.atan2(H.eye-.3,Math.hypot(cat.x,z-cat.z)));goal.fov=60;
+    $('catReaction').textContent=`Walking over to ${cat.name}. They'll wait for you.`;
+  });
+}
+function catAction(action){
+  if(floorBusy)return;const reply=actOnCat(catWorld,selectedCat,action,catPlayer(),floors[floor]);$('catReaction').textContent=reply.message;
+  if(reply.ok&&reply.reaction)$('catBubble').dataset.cat=String(selectedCat);
+  lastCatUI='';updateCatPanel();
+}
+function updateCatPanel(){
+  const companion=catWorld.follower===null?null:catWorld.cats[catWorld.follower],label=companion?`${companion.name} is walking with you`:'';
+  if(label!==lastCompanion){lastCompanion=label;$('companionPill').hidden=!companion;document.body.classList.toggle('has-companion',!!companion);$('companionName').textContent=label;}
+  if(!catsOpen)return;
+  const cat=catWorld.cats[selectedCat],allowed=catAvailability(catWorld,selectedCat,catPlayer()),playing=catWorld.toy?.owner===selectedCat;
+  const distance=Number.isFinite(allowed.distance)?`${allowed.distance<1?'Right beside you':`${allowed.distance.toFixed(1)} m away`} · ${cat.floor}F`:`Upstairs · ${cat.floor}F`;
+  const key=JSON.stringify([cat.id,distance,cat.mode,cat.pets,cat.affection,allowed.pet,allowed.call,allowed.follow,allowed.play,allowed.rest,playing,floorBusy]);if(key===lastCatUI)return;lastCatUI=key;
+  $('catPanel').dataset.mode=cat.mode;$('catPanel').dataset.cat=String(cat.id);$('catDistance').textContent=Number.isFinite(allowed.distance)?distance:`On ${cat.floor}F · take the stairs`;
+  $('catMood').textContent=catMood(cat);$('catPetCount').textContent=`${cat.pets} ${cat.pets===1?'pet':'pets'}`;$('catBond').value=cat.affection;$('catBond').previousElementSibling.textContent=friendship(cat);
+  const controls=[['catPet','pet','hand',cat.mode==='petting'?'Enjoying the cuddle':'Pet gently'],['catCall','call','bell',cat.mode==='calling'?'Coming over…':'Call over'],['catFollow','follow','footsteps',cat.follow?'Stop following':'Walk with me'],['catPlay','play','yarn',playing?'Put yarn away':'Play with yarn']];
+  for(const [id,action,art,text] of controls){const button=$(id);iconLabel(button,art,text);button.disabled=floorBusy||!allowed[action]||(action==='call'&&cat.mode==='calling');if(['follow','play'].includes(action))button.setAttribute('aria-pressed',String(action==='follow'?cat.follow:playing));}
+  $('catRest').disabled=floorBusy||!allowed.rest||cat.mode==='resting';$('catVisit').disabled=floorBusy;iconLabel($('catVisit'),'footsteps',cat.floor!==floor?`Take the stairs to ${cat.name}`:allowed.near?`A closer look at ${cat.name}`:`Walk to ${cat.name}`);
+}
+function updateCatBubble(){
+  const id=Number($('catBubble').dataset.cat),cat=catWorld.cats[id],bubble=$('catBubble');
+  if(!cat||cat.floor!==floor||cat.reactionUntil<=catWorld.time){bubble.classList.remove('show');return;}
+  const p=new T.Vector3(cat.x,floors[cat.floor].y+.72,cat.z).project(camera);
+  const visible=p.z<1&&p.z>-1&&Math.abs(p.x)<.95&&Math.abs(p.y)<.95;bubble.classList.toggle('show',visible);
+  if(visible){bubble.style.left=`${(p.x+1)*innerWidth/2}px`;bubble.style.top=`${(1-p.y)*innerHeight/2}px`;}
+}
+function bindCatsUI(){
+  $('catsBtn').onclick=()=>{if(catsOpen)closeCats();else openCats();};$('catClose').onclick=()=>closeCats();$('catVisit').onclick=visitCat;
+  for(const [id,action] of [['catPet','pet'],['catCall','call'],['catFollow','follow'],['catPlay','play'],['catRest','rest']])$(id).onclick=()=>catAction(action);
+  $('companionStop').onclick=()=>{stopCompanion(catWorld);if(catsOpen)$('catReaction').textContent='Your companion is free to explore again.';lastCatUI='';updateCatPanel();};
+  for(const c of catWorld.cats){const button=document.createElement('button');button.type='button';button.dataset.cat=String(c.id);button.setAttribute('aria-label',`Meet ${c.name}, ${c.floor}F`);button.setAttribute('aria-pressed','false');button.title=`${c.name} · ${c.temperament}`;button.innerHTML=catPortraitMarkup(c.id);button.onclick=()=>openCats(c.id);$('catRoster').append(button);}
+}
+function buildMapCats(root){
+  mapCatMarkers=new Map();const layer=svg('g',{'aria-label':'Hallway cats'},root);
+  for(const cat of catWorld.cats.filter(c=>c.floor===mapFloor)){
+    const group=svg('g',{class:'mapCatMarker',role:'button',tabindex:0,'aria-label':`Meet ${cat.name}, ${cat.floor}F`,'data-type':'cat','data-id':cat.id},layer);
+    svg('circle',{class:'mapCatHalo',r:.7,fill:'#F9F1DD',stroke:'#A17C3E','stroke-width':.09},group);
+    const art=svg('g',{transform:'translate(-.5 -.5) scale(.042)',fill:'none',stroke:'#6E1A28','stroke-width':1.7,'stroke-linecap':'round','stroke-linejoin':'round','pointer-events':'none'},group);svg('path',{d:ICON_PATHS.cat},art);
+    svg('title',{},group).textContent=`${cat.name} — ${cat.trait}`;mapCatMarkers.set(cat.id,group);
+  }updateMapCats();
+}
+function updateMapCats(){for(const [id,marker] of mapCatMarkers){const cat=catWorld.cats[id];marker.setAttribute('transform',`translate(${cat.x} ${-cat.z})`);}}
 
 /* ---------- Walking and floors ---------- */
 const clamp=z=>Math.max(floors[floor].min,Math.min(floors[floor].max,z));
 function moveTo(z,yaw=goal.yaw,pitch=goal.pitch){tween={start:performance.now(),duration:Math.min(2200,Math.max(650,Math.abs(z-cam.z)*45)),from:{...cam},to:{z:clamp(z),yaw,pitch}};goal.z=clamp(z);goal.yaw=yaw;goal.pitch=pitch;}
 function applyFloor(){for(const f of [1,2])hallGroups[f].visible=f===floor;for(const L of LAYOUT)boothMeshes[L.id].group.visible=L.floor===floor;for(const c of cats)c.g.visible=c.f===floor;highlight();}
 function changeFloor(f,after){
-  if(floorBusy)return;if(f===floor){after?.();return;}if(!discard())return;dirty=false;floorBusy=true;$('fade').textContent=f===2?'🪜 Taking the stairs to Room 214–215…':'🪜 Back to the first floor…';$('fade').classList.add('on');
+  if(floorBusy)return;if(f===floor){after?.();return;}if(!discard())return;dirty=false;floorBusy=true;stopCompanion(catWorld);iconLabel($('fade'),f===2?'stairsUp':'stairsDown',f===2?'Taking the stairs to Room 214–215…':'Back to the first floor…');$('fade').classList.add('on');
   setTimeout(()=>{floor=f;tween=null;walk=keyWalk=0;cam.z=goal.z=f===2?1.2:-1.4;cam.yaw=goal.yaw=0;cam.pitch=goal.pitch=0;if(selection&&(selection.type==='booth'?byId[selection.id]:roomById[selection.id]).floor!==f){selection=null;$('panel').classList.remove('open');}applyFloor();if(mapOpen){mapFloor=f;mapView=null;renderMap();}setTimeout(()=>{$('fade').classList.remove('on');floorBusy=false;after?.();},160);},400);
 }
 function goTo(type,id){const L=type==='booth'?byId[id]:roomById[id];changeFloor(L.floor,()=>{moveTo(L.z+3,Math.atan2(type==='booth'?-L.x:2.2,3),type==='booth'?-.12:0);});}
 function step(dir){moveTo(goal.z+dir*(Math.cos(cam.yaw)>=0?-1:1)*4);}
 function reset(){changeFloor(1,()=>moveTo(H.start,0,0));goal.fov=68;}
-function updateNear(){const b=floors[floor];$('floorBtn').classList.toggle('show',floor===2||Math.abs(cam.z)<7);$('floorBtn').textContent=floor===2?'⬇ Back to 1st floor':'⬆ 2F · Room 214–215';let text=`📍 ${floor}F hallway`;const near=ROOMS.filter(r=>r.floor===floor).sort((a,b)=>Math.abs(a.z-cam.z)-Math.abs(b.z-cam.z))[0];if(near&&Math.abs(near.z-cam.z)<5)text=`📍 ${floor}F · ${near.name}${reservation(near.id).reservedFor?' 📌':''}`;else if(Math.abs(cam.z)<3)text=`📍 ${floor}F · Stairs ${floor===1?'↑':'↓'}`;else if(cam.z>3)text=`📍 ${floor}F · Start of hallway`;else if(cam.z<b.min+3)text=`📍 ${floor}F · End of hallway`;$('nearRoom').textContent=text;}
+function updateNear(){
+  const b=floors[floor];$('floorBtn').classList.toggle('show',floor===2||Math.abs(cam.z)<7);iconLabel($('floorBtn'),floor===2?'stairsDown':'stairsUp',floor===2?'Back to 1st floor':'2F · Room 214–215');
+  let text=`${floor}F hallway`;const near=ROOMS.filter(r=>r.floor===floor).sort((a,b)=>Math.abs(a.z-cam.z)-Math.abs(b.z-cam.z))[0];
+  if(near&&Math.abs(near.z-cam.z)<5)text=`${floor}F · ${near.name}${reservation(near.id).reservedFor?' · Reserved':''}`;
+  else if(Math.abs(cam.z)<3)text=`${floor}F · Stairs to ${floor===1?'2F':'1F'}`;else if(cam.z>3)text=`${floor}F · Start of hallway`;else if(cam.z<b.min+3)text=`${floor}F · End of hallway`;
+  if(text!==lastNear){lastNear=text;iconLabel($('nearRoom'),'pin',text);}
+}
+
 function pick(x,y){pointer.set(x/innerWidth*2-1,-y/innerHeight*2+1);raycaster.setFromCamera(pointer,camera);const visible=o=>{for(let p=o;p;p=p.parent)if(!p.visible)return false;return true;};const hits=raycaster.intersectObjects(targets.filter(o=>o.userData.floor===floor&&visible(o)),false);if(hits.length&&hits[0].distance<45)return hits[0].object.userData;const hit=raycaster.intersectObject(floorMeshes[floor],false)[0];return hit?{type:'floor',z:hit.point.z}:null;}
-function tap(x,y){const hit=pick(x,y);if(!hit)return;if(hit.type==='booth'||hit.type==='room')select(hit.type,hit.id);if(hit.type==='stairs')changeFloor(hit.id);if(hit.type==='floor')moveTo(hit.z);if(hit.type==='cat'){const c=cats[hit.id];c.pet=performance.now();toast(`🐈 ${c.name} says purrr… 💛`);}}
+function tap(x,y){const hit=pick(x,y);if(!hit)return;if(hit.type==='booth'||hit.type==='room')select(hit.type,hit.id);if(hit.type==='stairs')changeFloor(hit.id);if(hit.type==='floor'){if(!rollToy(catWorld,hit.z,catPlayer(),floors[floor]))moveTo(hit.z);}if(hit.type==='cat'){if(openCats(hit.id)&&catAvailability(catWorld,hit.id,catPlayer()).pet)catAction('pet');}}
 
 /* ---------- Interactive SVG map ---------- */
 const NS='http://www.w3.org/2000/svg';
@@ -335,22 +407,23 @@ function renderMap(){
   for(const L of LAYOUT.filter(L=>L.floor===mapFloor)){
     const b=booth(L.id),g=svg('g',{'data-type':'booth','data-id':L.id},root),fill=b.color!==DEFAULT_COLOR?b.color:({available:'#FFFFFF',assigned:'#3BA55C',reserved:'#7EA0F0',maintenance:'#BDBDBD'})[b.status];svg('rect',{x:L.x-.39,y:-L.z-.81,width:.78,height:1.62,rx:.1,fill,stroke:selection?.id===L.id?'#E8C86A':'#756A54','stroke-width':selection?.id===L.id?.3:.1},g);svg('title',{},g).textContent=`${L.id} · ${b.org||labels[b.status]}`;
   }
-  const sg=svg('g',{'data-type':'stairs','data-id':mapFloor===1?'2':'1'},root);svg('rect',{x:-7.9,y:-1.6,width:5.7,height:3.2,fill:'#E2D6B4',stroke:'#6F5A33','stroke-width':.15},sg);mapText(sg,-5,0,mapFloor===1?'STAIRS ↑ 2F':'STAIRS ↓ 1F',.7);
-  if(mapFloor===1){mapText(root,0,82,'ENTRANCE →',.6,'#7A1F2B');for(const z of [-82,-132]){svg('rect',{x:-7.9,y:-z-1.6,width:5.7,height:3.2,fill:'#CFC8B8'},root);mapText(root,-5,-z,'STAIRS',.7);}}
-  svg('g',{id:'mapPeople','pointer-events':'none'},root);$('mapF1').classList.toggle('on',mapFloor===1);$('mapF2').classList.toggle('on',mapFloor===2);$('mapDay').textContent=`Day ${day}`;
+  const sg=svg('g',{'data-type':'stairs','data-id':mapFloor===1?'2':'1'},root);svg('rect',{x:-7.9,y:-1.6,width:5.7,height:3.2,fill:'#E2D6B4',stroke:'#6F5A33','stroke-width':.15},sg);mapText(sg,-5,0,mapFloor===1?'STAIRS TO 2F':'STAIRS TO 1F',.7);
+  if(mapFloor===1){mapText(root,0,82,'ENTRANCE',.6,'#7A1F2B');for(const z of [-82,-132]){svg('rect',{x:-7.9,y:-z-1.6,width:5.7,height:3.2,fill:'#CFC8B8'},root);mapText(root,-5,-z,'STAIRS',.7);}}
+  svg('g',{id:'mapPeople','pointer-events':'none'},root);buildMapCats(root);$('mapF1').classList.toggle('on',mapFloor===1);$('mapF2').classList.toggle('on',mapFloor===2);$('mapDay').textContent=`Day ${day}`;
   setMapView();updateMapPeople();
 }
 function updateMapPeople(){
   const g=$('mapPeople');if(!g)return;g.replaceChildren();
-  for(const c of cats.filter(c=>c.f===mapFloor))mapText(g,c.x,-c.z,'🐈',.9);
+  updateMapCats();
   if(mapFloor===floor){const y=-cam.z;svg('polygon',{points:`0,${y} ${-Math.sin(cam.yaw-.5)*5},${y-Math.cos(cam.yaw-.5)*5} ${-Math.sin(cam.yaw+.5)*5},${y-Math.cos(cam.yaw+.5)*5}`,fill:'rgba(232,200,106,.4)'},g);svg('circle',{cx:0,cy:y,r:.6,fill:'#E8C86A',stroke:'#7A1F2B','stroke-width':.2},g);if(mapFollow&&mapView&&mapView.h<mapBounds().h){mapView.y=y-mapView.h*.4;setMapView();}}
 }
-function toggleMap(on=!mapOpen){mapOpen=on;document.body.classList.toggle('map-open',on);$('mapBtn').classList.toggle('on',on);document.documentElement.style.setProperty('--dockH',on?`${$('mapDock').getBoundingClientRect().height}px`:'0px');if(on){mapFloor=floor;mapView=null;renderMap();defaultMap();}}
+function toggleMap(on=!mapOpen){if(on)closeCats(false);mapOpen=on;document.body.classList.toggle('map-open',on);$('mapBtn').classList.toggle('on',on);document.documentElement.style.setProperty('--dockH',on?`${$('mapDock').getBoundingClientRect().height}px`:'0px');if(on){mapFloor=floor;mapView=null;renderMap();defaultMap();}}
 function zoomMap(factor){if(!mapView)return;const old=mapView.h,mapH=Math.max(8,Math.min(800,old*factor)),k=mapH/old;mapView={x:mapView.x+mapView.w*(1-k)/2,y:mapView.y+old*(1-k)/2,w:mapView.w*k,h:mapH};mapFollow=false;$('mapFollow').classList.remove('on');setMapView();}
 function mapPoint(x,y){const p=$('mapSvg').createSVGPoint();p.x=x;p.y=y;return p.matrixTransform($('mapSvg').getScreenCTM().inverse());}
 
 /* ---------- UI and input ---------- */
 function bindUI(){
+  bindCatsUI();
   $('connectionDetails').onclick=showConnectionDetails;$('dbClose').onclick=()=>$('dbDetails').classList.remove('open');$('dbCheck').onclick=checkConnection;
   $('dbDetails').onclick=e=>{if(e.target===$('dbDetails'))$('dbDetails').classList.remove('open');};
   for(const b of document.querySelectorAll('#days button'))b.onclick=()=>setDay(b.dataset.day);
@@ -368,7 +441,7 @@ function bindUI(){
   $('exportBtn').onclick=()=>{if(!isLSC||busy||!demo&&mode!=='neon')return;const payload={...state,app:'mendoza-hall',exportedAt:new Date().toISOString()},url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='assignments.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Downloaded all 3 days. This organizer export includes private notes.');};
   $('importBtn').onclick=()=>{if(isLSC){$('importFile').value='';$('importFile').click();}};
   $('importFile').onchange=async()=>{const file=$('importFile').files[0];if(!file||!isLSC)return;if(file.size>100000){toast('Import is too large (maximum 100 KB).');return;}try{const n=cleanImport(JSON.parse(await file.text()));if(confirm('Replace ALL THREE DAYS? Download a backup first.'))await mutate('POST','import',{days:n.days},'Imported all 3 days');}catch(e){toast(`Invalid import: ${e.message}`);}};
-  $('roomSelect').onchange=e=>{const [type,id]=e.target.value.split(':');e.target.value='';if(type==='room')goTo(type,id);if(type==='booth')select(type,id,true);};
+  $('roomSelect').onchange=e=>{const [type,id]=e.target.value.split(':');e.target.value='';if(type==='room')goTo(type,id);if(type==='booth')select(type,id,true);if(type==='cat'){openCats(Number(id));visitCat();}};
   $('floorBtn').onclick=()=>changeFloor(floor===1?2:1);$('resetBtn').onclick=reset;$('zoomIn').onclick=()=>{goal.fov=Math.max(35,goal.fov-8);};$('zoomOut').onclick=()=>{goal.fov=Math.min(85,goal.fov+8);};
   $('fsBtn').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else if(document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();else toast('Fullscreen is not available in this browser.');}catch{toast('Fullscreen is not available here.');}};
   for(const [id,dir] of [['fwdBtn',1],['backBtn',-1]]){
@@ -379,24 +452,24 @@ function bindUI(){
   v.onpointerdown=e=>{if(drag)return;drag={id:e.pointerId,x:e.clientX,y:e.clientY,start:performance.now(),distance:0};v.setPointerCapture(e.pointerId);v.classList.add('dragging');};
   v.onpointermove=e=>{
     if(drag&&e.pointerId===drag.id){const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag.distance+=Math.abs(dx)+Math.abs(dy);drag.x=e.clientX;drag.y=e.clientY;goal.yaw+=dx*.0032;goal.pitch=Math.max(-1.25,Math.min(1.25,goal.pitch+dy*.0032));tween=null;}
-    else if(!drag&&e.pointerType==='mouse'){const h=pick(e.clientX,e.clientY);v.classList.toggle('pointing',!!h&&h.type!=='floor');const tip=$('tip');tip.classList.toggle('show',!!h&&h.type!=='floor');if(h&&h.type!=='floor'){tip.textContent=h.type==='booth'?`${h.id} · ${booth(h.id).org||labels[booth(h.id).status]}`:h.type==='room'?roomById[h.id].name:h.type==='cat'?`${cats[h.id].name} — click to pet`:'Take the stairs';tip.style.left=`${Math.min(e.clientX,innerWidth-230)}px`;tip.style.top=`${e.clientY}px`;}}
+    else if(!drag&&e.pointerType==='mouse'){const h=pick(e.clientX,e.clientY);v.classList.toggle('pointing',!!h&&h.type!=='floor');const tip=$('tip');tip.classList.toggle('show',!!h&&h.type!=='floor');if(h&&h.type!=='floor'){tip.textContent=h.type==='booth'?`${h.id} · ${booth(h.id).org||labels[booth(h.id).status]}`:h.type==='room'?roomById[h.id].name:h.type==='cat'?`${catWorld.cats[h.id].name} — meet this companion`:'Take the stairs';tip.style.left=`${Math.min(e.clientX,innerWidth-230)}px`;tip.style.top=`${e.clientY}px`;}}
   };
   v.onpointerup=e=>{if(!drag||e.pointerId!==drag.id)return;const d=drag;drag=null;v.classList.remove('dragging');if(d.distance<7&&performance.now()-d.start<600)tap(e.clientX,e.clientY);};v.onpointercancel=v.onlostpointercapture=()=>{drag=null;v.classList.remove('dragging');};v.onpointerleave=()=>$('tip').classList.remove('show');v.addEventListener('wheel',e=>{e.preventDefault();goal.fov=Math.max(35,Math.min(85,goal.fov+(e.deltaY>0?5:-5)));},{passive:false});
   $('mapBtn').onclick=()=>toggleMap();$('mapClose').onclick=()=>toggleMap(false);$('mapF1').onclick=()=>{mapFloor=1;mapView=null;renderMap();defaultMap();};$('mapF2').onclick=()=>{mapFloor=2;mapView=null;renderMap();defaultMap();};$('mapFit').onclick=()=>{mapFollow=false;$('mapFollow').classList.remove('on');fitMap();setMapView();};$('mapFollow').onclick=()=>{mapFollow=!mapFollow;$('mapFollow').classList.toggle('on',mapFollow);if(mapFollow)defaultMap();};$('mapZin').onclick=()=>zoomMap(1/1.4);$('mapZout').onclick=()=>zoomMap(1.4);
-  const ms=$('mapSvg'),pointers=new Map();let mapDrag=null,pinch=0;
+  const ms=$('mapSvg'),pointers=new Map();ms.addEventListener('keydown',e=>{const marker=e.target.closest('[data-type=cat]');if(marker&&(e.key==='Enter'||e.key===' ')){e.preventDefault();e.stopPropagation();openCats(Number(marker.dataset.id));visitCat();}});let mapDrag=null,pinch=0;
   const distance=()=>{const [a,b]=[...pointers.values()];return Math.hypot(a.x-b.x,a.y-b.y);};
   ms.onpointerdown=e=>{ms.setPointerCapture(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.size===1)mapDrag={x:e.clientX,y:e.clientY,moved:0};else{pinch=distance();if(mapDrag)mapDrag.moved=100;}};
   ms.onpointermove=e=>{if(!pointers.has(e.pointerId))return;pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.size>=2){const d=distance();if(pinch&&d)zoomMap(pinch/d);pinch=d;return;}if(!mapDrag)return;const dx=e.clientX-mapDrag.x,dy=e.clientY-mapDrag.y;mapDrag.x=e.clientX;mapDrag.y=e.clientY;mapDrag.moved+=Math.abs(dx)+Math.abs(dy);if(mapDrag.moved>5){const r=ms.getBoundingClientRect();mapView.x-=dx*mapView.w/r.width;mapView.y-=dy*mapView.h/r.height;mapFollow=false;$('mapFollow').classList.remove('on');setMapView();}};
-  const mapEnd=(e,cancel=false)=>{const isTap=!cancel&&pointers.size===1&&mapDrag?.moved<=5;pointers.delete(e.pointerId);pinch=0;if(!pointers.size)mapDrag=null;if(isTap){const el=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-type]');if(el&&ms.contains(el)){const {type,id}=el.dataset;if(type==='stairs')changeFloor(Number(id));else select(type,id,true);}else{const p=mapPoint(e.clientX,e.clientY);if(p.x>-2.2&&p.x<2.62)changeFloor(mapFloor,()=>moveTo(-p.y));}}};
+  const mapEnd=(e,cancel=false)=>{const isTap=!cancel&&pointers.size===1&&mapDrag?.moved<=5;pointers.delete(e.pointerId);pinch=0;if(!pointers.size)mapDrag=null;if(isTap){const el=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-type]');if(el&&ms.contains(el)){const {type,id}=el.dataset;if(type==='stairs')changeFloor(Number(id));else if(type==='cat'){openCats(Number(id));visitCat();}else select(type,id,true);}else{const p=mapPoint(e.clientX,e.clientY);if(p.x>-2.2&&p.x<2.62)changeFloor(mapFloor,()=>moveTo(-p.y));}}};
   ms.onpointerup=e=>mapEnd(e);ms.onpointercancel=e=>mapEnd(e,true);ms.addEventListener('wheel',e=>{e.preventDefault();zoomMap(e.deltaY>0?1.15:1/1.15);},{passive:false});
   function showIntro(){$('intro').classList.remove('opening','reading');$('intro').classList.add('show');}
   function openLetter(){if($('intro').classList.contains('opening'))return;$('intro').classList.add('opening');setTimeout(()=>$('intro').classList.add('reading'),720);}
   function closeIntro(){if($('introHide').checked)try{localStorage.setItem('mendoza_welcome_hidden','1');}catch{}$('intro').classList.remove('show');}
   $('envelope').onclick=openLetter;$('introGo').onclick=closeIntro;$('brandTitle').onclick=showIntro;$('intro').onclick=e=>{if(e.target===$('intro')&&$('intro').classList.contains('reading'))closeIntro();};
   addEventListener('keydown',e=>{
-    if(e.key==='Escape'){if($('dbDetails').classList.contains('open')){$('dbDetails').classList.remove('open');return;}if($('intro').classList.contains('show')){if($('intro').classList.contains('reading'))closeIntro();else openLetter();}else if($('lscWrap').classList.contains('open'))$('lscWrap').classList.remove('open');else if(selection)closePanel();else toggleMap(false);return;}
+    if(e.key==='Escape'){if(catsOpen){closeCats();return;}if($('dbDetails').classList.contains('open')){$('dbDetails').classList.remove('open');return;}if($('intro').classList.contains('show')){if($('intro').classList.contains('reading'))closeIntro();else openLetter();}else if($('lscWrap').classList.contains('open'))$('lscWrap').classList.remove('open');else if(selection)closePanel();else toggleMap(false);return;}
     if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)||$('intro').classList.contains('show')||$('lscWrap').classList.contains('open'))return;
-    const k=e.key.toLowerCase();if(['w','arrowup','s','arrowdown'].includes(k)){e.preventDefault();keyWalk=['w','arrowup'].includes(k)?1:-1;tween=null;}else if(['a','arrowleft'].includes(k))goal.yaw+=.25;else if(['d','arrowright'].includes(k))goal.yaw-=.25;else if(k==='m')toggleMap();else if(DAYS.includes(k))setDay(k);
+    const k=e.key.toLowerCase();if(['w','arrowup','s','arrowdown'].includes(k)){e.preventDefault();keyWalk=['w','arrowup'].includes(k)?1:-1;tween=null;}else if(['a','arrowleft'].includes(k))goal.yaw+=.25;else if(['d','arrowright'].includes(k))goal.yaw-=.25;else if(k==='m')toggleMap();else if(k==='c'){if(catsOpen)closeCats();else openCats();}else if(DAYS.includes(k))setDay(k);
   });
   addEventListener('keyup',e=>{if(['w','s','arrowup','arrowdown'].includes(e.key.toLowerCase()))keyWalk=0;});addEventListener('blur',()=>{walk=keyWalk=0;});
   addEventListener('beforeunload',e=>{if(dirty||busy){e.preventDefault();e.returnValue='';}});
@@ -406,14 +479,15 @@ function bindUI(){
 }
 function confetti(){const c=$('confetti'),g=c.getContext('2d');c.width=innerWidth;c.height=innerHeight;const parts=Array.from({length:60},()=>({x:innerWidth/2,y:innerHeight/3,vx:(Math.random()-.5)*12,vy:-Math.random()*8-2,color:colors[Math.floor(Math.random()*colors.length)]}));let frames=0;function step(){g.clearRect(0,0,c.width,c.height);for(const p of parts){p.vy+=.23;p.x+=p.vx;p.y+=p.vy;g.fillStyle=p.color;g.fillRect(p.x,p.y,6,4);}if(++frames<130)requestAnimationFrame(step);else g.clearRect(0,0,c.width,c.height);}step();}
 function animate(now){
-  requestAnimationFrame(animate);const dt=Math.min(.05,(now-last)/1000);last=now;if(document.hidden)return;
+  requestAnimationFrame(animate);const elapsed=Math.min(.5,Math.max(0,(now-last)/1000)),dt=Math.min(.05,elapsed);last=now;if(document.hidden)return;
   if(tween){const p=Math.min(1,(now-tween.start)/tween.duration),e=p<.5?4*p*p*p:1-Math.pow(-2*p+2,3)/2;for(const key of ['z','yaw','pitch'])cam[key]=goal[key]=tween.from[key]+(tween.to[key]-tween.from[key])*e;if(p===1)tween=null;}
   else{if(!floorBusy){const dir=walk||keyWalk;if(dir)goal.z=clamp(goal.z+dir*(Math.cos(cam.yaw)>=0?-1:1)*4.2*dt);}for(const key of ['z','yaw','pitch'])cam[key]+=(goal[key]-cam[key])*.16;}
   cam.fov+=(goal.fov-cam.fov)*.18;camera.fov=cam.fov;camera.updateProjectionMatrix();camera.position.set(0,floors[floor].y+H.eye+((walk||keyWalk)?Math.sin(now*.007)*.02:0),cam.z);camera.rotation.set(cam.pitch,cam.yaw,0,'YXZ');
-  for(const c of cats){
-    if(c.f!==floor)continue;if(now>c.next){c.target=Math.max(floors[c.f].min,Math.min(floors[c.f].max,c.z+(Math.random()-.5)*12));c.next=now+4000+Math.random()*7000;}
-    const dz=c.target-c.z,moving=Math.abs(dz)>.05;c.z+=Math.sign(dz)*Math.min(Math.abs(dz),dt*.4);const desired=Math.abs(c.z-cam.z)<1.6?(c.x<0?-.82:.82):Math.sin(now*.0003+c.phase)*.55;c.x+=(desired-c.x)*dt*2;const heading=dz>0?0:Math.PI;c.heading+=(heading-c.heading)*dt*3;c.g.rotation.y=c.heading;const hop=now-c.pet<500?Math.sin((now-c.pet)/500*Math.PI)*.18:0;c.g.position.set(c.x,floors[c.f].y+hop,c.z);c.legs.forEach((l,i)=>l.rotation.x=moving?Math.sin(now*.009+(i%2)*Math.PI)*.45:0);c.tail.rotation.z=Math.sin(now*.003+c.phase)*.3;
-  }
+  // Fixed-size steps preserve responsive timers even on low-frame-rate devices.
+  for(let remaining=elapsed;remaining>0;remaining-=.05)updateCatWorld(catWorld,Math.min(.05,remaining),catPlayer(),f=>floors[f]);
+  cats.forEach((visual,id)=>{visual.g.visible=visual.f===floor;visual.halo.visible=catsOpen&&selectedCat===id&&visual.f===floor;poseCat(visual,catWorld.cats[id],catWorld.time,reducedMotion);});
+  const toy=catWorld.toy;yarnToy.visible=!!toy&&toy.floor===floor;if(toy){yarnToy.position.set(toy.x,floors[toy.floor].y+.09,toy.z);yarnToy.rotation.set(toy.roll*.7,toy.roll*.3,toy.roll);}
+  updateCatBubble();updateCatPanel();
   if(selection?.type==='booth')boothMeshes[selection.id].ring.material.opacity=.65+.25*Math.sin(now*.006);
   updateNear();if(mapOpen&&Math.floor(now/80)!==Math.floor((now-dt*1000)/80))updateMapPeople();renderer.render(scene,camera);
 }

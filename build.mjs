@@ -2,11 +2,13 @@
 import { readFileSync,writeFileSync,mkdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { build } from 'esbuild';
+import { iconMarkup } from './lib/icons.js';
 const read=f=>readFileSync(new URL(f,import.meta.url),'utf8');
 const bundle=await build({entryPoints:['app.js'],bundle:true,write:false,format:'iife',platform:'browser',target:['es2022'],minify:true});
 const three=read('./node_modules/three/build/three.min.js');
 const app=bundle.outputFiles[0].text;
-let html=read('./index.src.html');
+let html=read('./index.src.html').replace(/<span data-icon="([a-zA-Z]+)"><\/span>/g,(_,name)=>iconMarkup(name));
+if(html.includes('data-icon='))throw new Error('Unresolved icon placeholder');
 for(const [marker,source] of [['/*__THREE_INLINE__*/',three],['/*__APP_INLINE__*/',app]]){
   if(html.split(marker).length!==2)throw new Error(`Expected exactly one ${marker}`);
   html=html.replace(marker,()=>source.replace(/<\/script/gi,'<\\/script'));

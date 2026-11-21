@@ -193,7 +193,7 @@
   .envBack{position:absolute;inset:0;background:#cdb282;border-radius:6px;}
   .envPeek{position:absolute;left:16px;right:16px;top:12px;height:168px;background:#fbf6ea repeating-linear-gradient(transparent 0 15px,rgba(70,110,170,.15) 15px 16px);border-radius:3px;transition:transform .6s cubic-bezier(.2,.8,.2,1) .2s;}
   .envFront{position:absolute;inset:0;background:linear-gradient(160deg,#ead7af,#dcc293);clip-path:polygon(0 0,50% 56%,100% 0,100% 100%,0 100%);border-radius:6px;}
-  .envFront:after{content:"to: you ♡";position:absolute;right:26px;bottom:20px;font-family:var(--hand);color:#6b4b2a;font-size:15px;opacity:.75;}
+  .envFront:after{content:"to: our explorer";position:absolute;right:26px;bottom:20px;font-family:var(--hand);color:#6b4b2a;font-size:15px;opacity:.75;}
   .envFlap{position:absolute;left:0;right:0;top:0;height:58%;background:linear-gradient(180deg,#e4cd9f,#d6bb88);clip-path:polygon(0 0,100% 0,50% 100%);transform-origin:top;transition:transform .5s ease;z-index:3;}
   .seal{position:absolute;left:50%;top:56%;transform:translate(-50%,-50%);z-index:4;width:64px;height:64px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#b8404e,#6e1a28 72%);color:#f3d27a;font:800 15px Georgia,serif;letter-spacing:.06em;border:none;box-shadow:0 4px 10px rgba(0,0,0,.35),inset 0 0 0 5px rgba(255,255,255,.07);cursor:pointer;transition:transform .3s;}
   .seal:before{content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid rgba(232,200,106,.55);animation:ring 1.8s ease-out infinite;}
@@ -246,6 +246,36 @@
     .legend{display:none;}
     .lscMenu{right:10px;left:10px;width:auto;top:116px;}
   }
+
+  /* Original line artwork: consistent at every device pixel ratio. */
+  .uiIcon{width:18px;height:18px;flex:0 0 auto;vertical-align:middle;display:inline-block;}
+  .navBtn .uiIcon{color:var(--gold);width:19px;height:19px;}
+  .nearRoom,.floorBtn.show,.mapTitle,.introHint,.lmBtn,.stampBtn,.toast.show,.pLock>span{display:flex;align-items:center;gap:8px;}
+  .floorBtn .uiIcon{width:17px;height:17px;}.nearRoom .uiIcon{width:15px;height:15px;color:var(--gold);}
+  .mapTitle .uiIcon{color:var(--gold);}.legend .uiIcon{width:15px;height:15px;}
+  .pClose,.catClose{display:grid;place-items:center;padding:0;}.pClose .uiIcon,.chip .uiIcon{width:16px;height:16px;}
+  .fade{gap:12px;}.fade>.uiIcon{width:28px;height:28px;}.btn .uiIcon{width:16px;height:16px;margin-right:3px;}
+  button:focus-visible,select:focus-visible{outline:3px solid var(--gold2);outline-offset:3px;}
+  .catPanel[hidden],.companionPill[hidden]{display:none!important;}
+  .catPanel{position:absolute;left:14px;bottom:calc(104px + var(--dockH));z-index:26;width:352px;max-width:calc(100vw - 28px);max-height:calc(100dvh - 246px - var(--dockH));overflow:auto;overscroll-behavior:contain;color:#312A24;background:#FBF8EF;border:1px solid #E3DAC7;border-radius:22px;padding:20px;box-shadow:0 20px 65px #100D0A66;scrollbar-width:thin;}
+  .catPanelHead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}.catEyebrow{margin:0 0 6px;color:#8A7045;font-size:9px;letter-spacing:.18em;font-weight:800;}
+  .catPanel h2{font:normal 29px/1.1 Georgia,serif;letter-spacing:-.04em;margin:0;color:#5E1620;}.catClose{background:#F0EADD;border:0;border-radius:50%;width:29px;height:29px;color:#756653;cursor:pointer;}
+  .catIntro{font-size:11.5px;color:#8A7A65;margin:9px 0 16px;}
+  .catRoster{display:flex;gap:8px;overflow-x:auto;scrollbar-width:thin;padding:2px 1px 8px;margin-bottom:10px;}
+  .catRoster button{border:1.5px solid transparent;border-radius:50%;padding:2px;background:transparent;flex:0 0 35px;width:35px;height:35px;cursor:pointer;transition:border-color .15s,transform .15s;}.catRoster button:hover{transform:translateY(-2px);}.catRoster button[aria-pressed=true]{border-color:#8B3845;background:#F0E3D1;}
+  .catPortrait{display:block;width:100%;height:100%;}.catProfile{display:flex;align-items:center;gap:13px;}.catProfile>#catPortrait{width:78px;height:78px;flex:0 0 auto;}
+  .catProfileText{min-width:0;}.catNameRow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}.catNameRow h3{font:normal 23px Georgia,serif;margin:0;color:#3E3029;}.catNameRow>span{font-size:9px;font-weight:700;padding:3px 6px;border-radius:5px;background:#EBE9DB;color:#6C7055;}
+  #catTrait{font-size:11.5px;line-height:1.5;color:#82745F;margin:5px 0;}.catDistance{font-size:10px;color:#6E1A28;margin:0;font-weight:700;}
+  .catMoodRow{display:flex;align-items:center;gap:6px;border-top:1px solid #E9E1D1;margin-top:16px;padding-top:13px;font-size:10.5px;color:#7E735E;}.catMoodDot{width:5px;height:5px;border-radius:50%;background:#8C9874;}.catMoodRow>#catPetCount{margin-left:auto;color:#A2947E;font-size:10px;}
+  .catBond{display:flex;align-items:center;gap:12px;margin:10px 0 14px;}.catBond label{font-size:10px;color:#9A896F;white-space:nowrap;}.catBond meter{appearance:none;flex:1;width:80px;height:4px;background:#EAE2D4;border:0;border-radius:4px;}.catBond meter::-webkit-meter-bar{background:#EAE2D4;border:0;border-radius:4px;height:4px;}.catBond meter::-webkit-meter-optimum-value{background:#B6A06C;border-radius:4px;}.catBond meter::-moz-meter-bar{background:#B6A06C;border-radius:4px;}
+  .catVisit{width:100%;border:0;border-radius:10px;display:flex;align-items:center;gap:8px;padding:10px 12px;background:#6E1A28;color:#FFF4D8;font-size:11px;font-weight:700;cursor:pointer;margin-bottom:8px;}.catVisit>.uiIcon:last-child{margin-left:auto;width:15px;}
+  .catActions{display:grid;grid-template-columns:1fr 1fr;gap:7px;}.catActions button{display:flex;align-items:center;gap:8px;border:1px solid #E4DAC8;background:#F5F0E5;border-radius:10px;padding:11px 10px;color:#67513D;font-size:11px;font-weight:600;cursor:pointer;min-height:42px;}.catActions button:hover:not(:disabled){background:#EDE3D0;border-color:#C5AD7B;}.catActions button[aria-pressed=true]{background:#EEE1D7;border-color:#B47B74;color:#6E1A28;}.catActions button:disabled,.catPanelFoot button:disabled{opacity:.42;cursor:not-allowed;}
+  .catReaction{font:italic 12px/1.6 Georgia,serif;min-height:38px;color:#88775C;margin:13px 0 8px;}.catPanelFoot{display:flex;align-items:center;justify-content:space-between;border-top:1px solid #E9E1D1;padding-top:10px;gap:8px;}.catPanelFoot button{display:flex;align-items:center;gap:5px;background:none;border:0;padding:3px 0;font-size:10px;color:#85765F;cursor:pointer;}.catPanelFoot button .uiIcon{width:14px;height:14px;}.catPanelFoot>span{font-size:9px;letter-spacing:.02em;color:#AD9F88;}
+  .companionPill{position:absolute;z-index:12;bottom:calc(78px + var(--dockH));left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;background:#F8F2E4;color:#664D31;border:1px solid #D3BF93;border-radius:99px;padding:6px 8px 6px 12px;box-shadow:0 5px 25px #0004;font-size:11px;white-space:nowrap;}.companionPill button{border:0;background:#EAE0CB;border-radius:50%;width:23px;height:23px;display:grid;place-items:center;padding:0;cursor:pointer;color:inherit;}.companionPill button .uiIcon{width:13px;height:13px;}body.has-companion .hint{display:none;}
+  .catBubble{display:none;position:absolute;z-index:15;pointer-events:none;align-items:center;gap:5px;border-radius:99px;background:#FBF4E4;color:#913A4B;border:1px solid #DFC9A9;box-shadow:0 5px 20px #0003;padding:6px 10px;transform:translate(-50%,-100%);font:italic 12px Georgia,serif;}.catBubble.show{display:flex;}.catBubble>.uiIcon{width:15px;height:15px;}
+  .mapCatMarker{cursor:pointer;outline:none;}.mapCatMarker:focus .mapCatHalo{stroke:#6E1A28;stroke-width:.22;}.mapCatMarker:hover .mapCatHalo{fill:#FFF3CB;}
+  @media(max-width:700px){.catPanel{left:10px;bottom:82px;max-width:calc(100vw - 20px);width:350px;max-height:calc(100dvh - 216px);padding:16px;border-radius:18px;}.catPanel h2{font-size:26px;}.catIntro{margin-bottom:12px;}.catProfile>#catPortrait{width:68px;height:68px;}.catMoodRow{margin-top:12px;padding-top:10px;}.catReaction{margin:10px 0 6px;}.catRoster{margin-bottom:6px;}.companionPill{bottom:74px;max-width:95vw;}.catVisit{min-height:40px;}}
+
   @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;}}
 </style>
 </head>
@@ -271,34 +301,31 @@
     </div>
     <div class="topControls">
       <select id="roomSelect" class="pill" aria-label="Go to a room or organization"><option value="">Go to…</option></select>
-      <button class="iconBtn" id="mapBtn" aria-label="Toggle 2D map" title="2D map (M)">
-        <svg viewBox="0 0 24 24"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg>
-      </button>
-      <button class="iconBtn" id="lscBtn" aria-label="CSSP LSC sign-in" title="CSSP LSC sign-in">
-        <svg viewBox="0 0 24 24" id="lockIcon"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
-      </button>
+      <button class="iconBtn" id="mapBtn" aria-label="Toggle 2D map" title="2D map (M)"><span data-icon="map"></span></button>
+      <button class="iconBtn" id="catsBtn" aria-label="Meet the hallway cats" aria-expanded="false" aria-controls="catPanel" title="Hallway companions (C)"><span data-icon="paw"></span></button>
+      <button class="iconBtn" id="lscBtn" aria-label="CSSP LSC sign-in" title="CSSP LSC sign-in"><span data-icon="lock"></span></button>
     </div>
   </div>
 
   <div class="sideControls">
-    <button class="iconBtn" id="zoomIn" aria-label="Zoom in" title="Zoom in"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
-    <button class="iconBtn" id="zoomOut" aria-label="Zoom out" title="Zoom out"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
-    <button class="iconBtn" id="resetBtn" aria-label="Reset view" title="Reset view"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></button>
-    <button class="iconBtn" id="fsBtn" aria-label="Fullscreen" title="Fullscreen"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+    <button class="iconBtn" id="zoomIn" aria-label="Zoom in" title="Zoom in"><span data-icon="plus"></span></button>
+    <button class="iconBtn" id="zoomOut" aria-label="Zoom out" title="Zoom out"><span data-icon="minus"></span></button>
+    <button class="iconBtn" id="resetBtn" aria-label="Reset view" title="Reset view"><span data-icon="reset"></span></button>
+    <button class="iconBtn" id="fsBtn" aria-label="Fullscreen" title="Fullscreen"><span data-icon="fullscreen"></span></button>
   </div>
 
   <div class="hint">Drag to look &nbsp;•&nbsp; <span class="kbd">W</span>/<span class="kbd">S</span> to walk &nbsp;•&nbsp; Tap tables &amp; doors &nbsp;•&nbsp; <span class="kbd">M</span> map</div>
   <div class="navCluster">
-    <button class="navBtn" id="backBtn"><span class="arr">↓</span> Back</button>
-    <button class="navBtn" id="fwdBtn">Forward <span class="arr">↑</span></button>
+    <button class="navBtn" id="backBtn"><span data-icon="down"></span> Back</button>
+    <button class="navBtn" id="fwdBtn">Forward <span data-icon="up"></span></button>
   </div>
-  <div class="nearRoom" id="nearRoom">📍 Start of hallway</div>
-  <button class="floorBtn" id="floorBtn">⬆ 2F · Room 214–215</button>
+  <div class="nearRoom" id="nearRoom"><span data-icon="pin"></span> Start of hallway</div>
+  <button class="floorBtn" id="floorBtn"><span data-icon="stairsUp"></span> 2F · Room 214–215</button>
   <div class="tip" id="tip"></div>
 
   <!-- Booth / room panel -->
   <div class="panel" id="panel" role="dialog" aria-label="Details">
-    <button class="pClose" id="pClose" aria-label="Close">×</button>
+    <button class="pClose" id="pClose" aria-label="Close"><span data-icon="close"></span></button>
     <div class="pKicker" id="pKicker">Booth</div>
     <h2 id="pTitle">—</h2>
     <p class="sub" id="pSub">—</p>
@@ -328,16 +355,37 @@
       <div class="field"><label for="rFor">Reserved for</label><input type="text" id="rFor" placeholder="e.g. Philosophy Circle — Workshop" maxlength="48"></div>
       <div class="field"><label for="rNote">Little note on the paper</label><input type="text" id="rNote" placeholder="e.g. 1–3 PM · please knock!" maxlength="60"></div>
       <div class="field"><label>Paper color</label><div class="swatches" id="paperSwatches"></div></div>
-      <div class="panelBtns"><button class="btn primary" id="rSave">📌 Tape it on the door</button><button class="btn ghost" id="rClear">Peel off</button></div>
+      <div class="panelBtns"><button class="btn primary" id="rSave"><span data-icon="pin"></span> Reserve room</button><button class="btn ghost" id="rClear">Peel off</button></div>
     </div>
 
-    <div class="pLock" id="pLock"><span>🔒 Only CSSP LSC can edit this.</span><button id="pSignIn">Sign in</button></div>
+    <div class="pLock" id="pLock"><span><span data-icon="lock"></span> Only CSSP LSC can edit this.</span><button id="pSignIn">Sign in</button></div>
   </div>
+
+  <!-- Visitor-local companion interactions, independent of organizer access. -->
+  <section class="catPanel" id="catPanel" aria-labelledby="catPanelTitle" hidden>
+    <div class="catPanelHead"><div><p class="catEyebrow">THE HALLWAY REGULARS</p><h2 id="catPanelTitle">A little company.</h2></div><button id="catClose" class="catClose" aria-label="Close cat panel"><span data-icon="close"></span></button></div>
+    <p class="catIntro">Seven familiar faces. One very long hallway.</p>
+    <div class="catRoster" id="catRoster" role="group" aria-label="Choose a hallway cat"></div>
+    <div class="catProfile"><div id="catPortrait"></div><div class="catProfileText"><div class="catNameRow"><h3 id="catName">Mingming</h3><span id="catTemperament">Sociable</span></div><p id="catTrait"></p><p class="catDistance" id="catDistance"></p></div></div>
+    <div class="catMoodRow"><span class="catMoodDot"></span><span id="catMood">A little curious</span><span id="catPetCount">0 pets</span></div>
+    <div class="catBond"><label for="catBond">Getting acquainted</label><meter id="catBond" min="0" max="100" value="12" aria-label="Friendship with selected cat"></meter></div>
+    <button class="catVisit" id="catVisit"><span data-icon="footsteps"></span><span>Walk to Mingming</span><span data-icon="right"></span></button>
+    <div class="catActions" role="group" aria-label="Interact with selected cat">
+      <button id="catPet"><span data-icon="hand"></span><span>Pet gently</span></button>
+      <button id="catCall"><span data-icon="bell"></span><span>Call over</span></button>
+      <button id="catFollow"><span data-icon="footsteps"></span><span>Walk with me</span></button>
+      <button id="catPlay"><span data-icon="yarn"></span><span>Play with yarn</span></button>
+    </div>
+    <p class="catReaction" id="catReaction" role="status" aria-live="polite">Come a little closer. Friendships start with hello.</p>
+    <div class="catPanelFoot"><button id="catRest"><span data-icon="moon"></span> Let them rest</button><span>Just for your visit</span></div>
+  </section>
+  <div class="companionPill" id="companionPill" hidden><span data-icon="paw"></span><span id="companionName"></span><button id="companionStop" aria-label="Let your companion roam"><span data-icon="close"></span></button></div>
+  <div class="catBubble" id="catBubble" aria-hidden="true"><span data-icon="heart"></span><span>Purrr.</span></div>
 
   <!-- 2D map -->
   <div class="mapDock" id="mapDock" aria-label="Hallway map">
     <div class="mapHead">
-      <div class="mapTitle">🗺️ Map <span id="mapDay">Day 1</span></div>
+      <div class="mapTitle"><span data-icon="map"></span> Map <span id="mapDay">Day 1</span></div>
       <div class="floorSeg" role="group" aria-label="Floor"><button id="mapF1" class="on">1F</button><button id="mapF2">2F</button></div>
       <div class="legend">
         <span><i class="lg"></i>Open table</span>
@@ -345,14 +393,14 @@
         <span><i class="lg rsv"></i>Reserved</span>
         <span><i class="lg paper"></i>Room reserved</span>
         <span><i class="lg you"></i>You</span>
-        <span>🐈 Kitties</span>
+        <span><span data-icon="cat"></span> Hallway cats</span>
       </div>
       <div class="mapBtns">
         <button class="chip on" id="mapFollow" title="Keep the map centered on you">Follow me</button>
         <button class="chip" id="mapFit" title="Show the whole hallway">Fit</button>
-        <button class="chip" id="mapZin" aria-label="Zoom map in">+</button>
-        <button class="chip" id="mapZout" aria-label="Zoom map out">−</button>
-        <button class="chip" id="mapClose" aria-label="Close map">✕</button>
+        <button class="chip" id="mapZin" aria-label="Zoom map in"><span data-icon="plus"></span></button>
+        <button class="chip" id="mapZout" aria-label="Zoom map out"><span data-icon="minus"></span></button>
+        <button class="chip" id="mapClose" aria-label="Close map"><span data-icon="close"></span></button>
       </div>
     </div>
     <svg id="mapSvg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" aria-label="Top-down map of the hallway"></svg>
@@ -385,10 +433,10 @@
     <div class="syncInfo" id="syncInfo"><i></i><span>Checking database…</span></div>
     <label class="lmLbl" for="dayTitle">What's happening this day?</label>
     <input type="text" id="dayTitle" maxlength="48" placeholder="e.g. Org Fair & Opening">
-    <button class="lmBtn" id="exportBtn">⬇️ Download assignments.json</button>
-    <button class="lmBtn" id="importBtn">⬆️ Import a saved file</button>
-    <button class="lmBtn danger" id="resetDayBtn">🧹 Clear this day</button>
-    <button class="lmBtn" id="signOutBtn">🔓 Sign out</button>
+    <button class="lmBtn" id="exportBtn"><span data-icon="download"></span> Download assignments.json</button>
+    <button class="lmBtn" id="importBtn"><span data-icon="upload"></span> Import a saved file</button>
+    <button class="lmBtn danger" id="resetDayBtn"><span data-icon="trash"></span> Clear this day</button>
+    <button class="lmBtn" id="signOutBtn"><span data-icon="unlock"></span> Sign out</button>
     <p class="lmNote" id="lmNote">Confirmed changes are shared with everyone. The view refreshes every 15 seconds.</p>
     <input type="file" id="importFile" accept=".json,application/json" hidden>
   </div>
@@ -402,7 +450,7 @@
       <div class="envFlap"></div>
       <button class="seal" id="seal" aria-label="Open the letter">LSC</button>
     </div>
-    <p class="introHint" id="introHint">You've got mail ✉️ — <b>tap the seal</b></p>
+    <p class="introHint" id="introHint"><span data-icon="mail"></span> A letter for you. <b>Tap the seal to open.</b></p>
     <div class="paper" id="paper">
       <i class="tape l"></i><i class="tape r"></i>
       <p class="date">Mendoza Hall · <span id="letterDay">Day 1</span></p>
@@ -410,17 +458,17 @@
       <p>Welcome to <b>Mendoza Hall</b>, the <i>“pinakamahabang”</i> hallway! Take a slow walk with us. Peek at the rooms, find the booths, and see who's setting up where on <b>Day 1, 2 &amp; 3</b>.</p>
       <p>Drag to look around, tap <b>Forward</b> to walk, and open the <b>map</b> if you ever get lost.</p>
       <p class="sign">See you in the hallway,<span>— CSSP LSC</span></p>
-      <p class="ps">P.S. Tap any table or door, someone might have left a note 📌 — and say hi to the hallway kitties 🐈</p>
+      <p class="ps">P.S. A table or door might hold a note for you. And if a cat wanders by, take a moment to make a friend.</p>
       <div class="foot">
         <label><input type="checkbox" id="introHide"> Don't show again</label>
-        <button class="stampBtn" id="introGo">Let's go →</button>
+        <button class="stampBtn" id="introGo">Let's go <span data-icon="right"></span></button>
       </div>
     </div>
   </div>
 
   <canvas id="confetti"></canvas>
   <div class="toast" id="toast"></div>
-  <div class="fade" id="fade">🪜 Taking the stairs…</div>
+  <div class="fade" id="fade"><span data-icon="stairsUp"></span> Taking the stairs…</div>
   <div class="loader" id="loader"><div class="spin"></div><p>Entering Mendoza Hall…</p></div>
 </div>
 <script>/*__THREE_INLINE__*/</script>

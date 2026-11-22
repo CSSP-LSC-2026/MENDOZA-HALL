@@ -98,6 +98,17 @@ export function createHandler(database=neon,{log=record=>console.error(JSON.stri
       }else if(route==='rooms'&&method==='PUT'&&parts.length===3){
         const day=validateDay(parts[1]),id=validateId('rooms',parts[2]),r=cleanRoom(await body(request));
         queries=r.reservedFor?[upsertRoom(day,id,r)]:[[`DELETE FROM public.room_reservations WHERE day=$2 AND room_id=$3 AND ${GUARD}`,[day,id]]];
+      }else if(route==='days'&&parts.length===3&&parts[2]==='copy'&&method==='POST'){
+        const target=validateDay(parts[1]),source=validateDay((await body(request))?.source);
+        if(source===target)fail(400,'Source and destination days must be different');
+        // The advisory lock and revision guard cover both deletion and server-side
+        // copying, including private notes. Never round-trip notes via public state.
+        queries=[
+          [`DELETE FROM public.booth_assignments WHERE day=$2 AND ${GUARD}`,[target]],
+          [`DELETE FROM public.room_reservations WHERE day=$2 AND ${GUARD}`,[target]],
+          [`INSERT INTO public.booth_assignments(day,booth_id,org,rep,description,notes,color,status) SELECT $2,booth_id,org,rep,description,notes,color,status FROM public.booth_assignments WHERE day=$3 AND ${GUARD}`,[target,source]],
+          [`INSERT INTO public.room_reservations(day,room_id,reserved_for,note,paper) SELECT $2,room_id,reserved_for,note,paper FROM public.room_reservations WHERE day=$3 AND ${GUARD}`,[target,source]]
+        ];
       }else if(route==='days'&&parts.length===2&&method==='PUT'){
         queries=[upsertDay(validateDay(parts[1]),text((await body(request))?.title,48))];
       }else if(route==='days'&&parts.length===2&&method==='DELETE'){

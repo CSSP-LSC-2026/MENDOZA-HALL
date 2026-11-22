@@ -292,6 +292,22 @@
   body.cats-open .hint,body.cats-open .companionPill{display:none;}
   @media(max-width:700px){.catPanel{left:10px;right:10px;bottom:76px;width:auto;max-width:none;max-height:min(65dvh,530px);padding:10px 12px;}.catPanel h2{font-size:9px;}.catPanelHead{margin-bottom:4px;}.catPanel .catProfile>#catPortrait{width:34px;height:34px;}.catPanel .catVisit{top:48px;right:12px;width:126px;}.catPanel.details-open .catVisit{width:100%;}.catProfileText{padding-right:122px;}.catActions button{flex-direction:column;font-size:10px;line-height:1.15;min-height:48px;padding:5px 2px;}.catPanel.details-open .catProfile>#catPortrait{width:48px;height:48px;}.catNameRow h3{font-size:20px;}.catReaction{margin:6px 0 0;}}
 
+  .soundToggle{position:absolute;right:14px;top:64px;z-index:12;}
+  @media(max-width:700px){.soundToggle{right:10px;top:104px;}}
+  /* Plain, generously spaced text; paper texture must not cross through words. */
+  .paper{font-family:Arial,Helvetica,sans-serif;font-size:17px;line-height:1.65;background:#FFFCF3;color:#201D19;padding:28px 26px;}
+  .paper p+p{margin-top:12px;}.paper .hello{font:700 23px/1.35 Arial,Helvetica,sans-serif;margin:12px 0;}
+  .paper .date{font-size:12px;line-height:1.5;color:#655A47;}.paper .sign span{font:700 20px/1.5 Arial,Helvetica,sans-serif;transform:none;color:#641B28;}.paper .ps{font:normal 15px/1.6 Arial,Helvetica,sans-serif;color:#403A30;}.paper .soundHint{font:normal 12px/1.5 Arial,Helvetica,sans-serif;color:#655A47;margin-top:14px;}.paper .foot{flex-wrap:wrap;gap:12px;}.paper .foot label{font-size:14px;}.paper .stampBtn{font-size:14px;min-height:44px;}
+  .pRow .v{font-size:16px;line-height:1.55;overflow-wrap:anywhere;color:#211D17;}.pRow .k{font-size:12px;color:#655A47;}.panel .sub{font-size:14px;line-height:1.5;}.pRow.paperRow .v{font-family:Arial,Helvetica,sans-serif;font-size:17px;line-height:1.5;}
+  /* Stop accidental double-tap zoom on controls, not accessibility pinch zoom in documents. */
+  button,select,input,label{touch-action:manipulation;}
+  .navBtn,#viewport,#viewport canvas,#mapSvg{touch-action:none;}
+  @media(max-width:700px){.field input[type=text],.field textarea,.field select,.modal input[type=password],.lscMenu input[type=text],select.pill{font-size:16px;}select.pill{max-width:142px;}.paper{font-size:17px;line-height:1.65;padding:24px 22px;}.paper .ps{font-size:15px;}}
+  #tapEffects{position:fixed;inset:0;pointer-events:none;z-index:70;overflow:hidden;contain:strict;}
+  .tapBloom{position:absolute;width:34px;height:34px;margin:-17px;border:2px solid #E8C86ACC;border-radius:50%;animation:tapBloom .5s ease-out forwards;}
+  .tapBloom i{position:absolute;width:5px;height:5px;left:13px;top:-9px;background:#FFF1BD;border-radius:50%;box-shadow:0 0 5px #7A1F2B66;}.tapBloom i:nth-child(2){left:36px;top:13px;}.tapBloom i:nth-child(3){left:13px;top:36px;}.tapBloom i:nth-child(4){left:-9px;top:13px;}
+  @keyframes tapBloom{from{transform:scale(.35);opacity:.95;}to{transform:scale(1.6);opacity:0;}}
+
   @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;}}
 </style>
 </head>
@@ -322,6 +338,8 @@
       <button class="iconBtn" id="lscBtn" aria-label="CSSP LSC sign-in" title="CSSP LSC sign-in"><span data-icon="lock"></span></button>
     </div>
   </div>
+
+    <button class="iconBtn soundToggle" id="soundBtn" aria-label="Turn button sounds on" aria-pressed="false" title="Turn button sounds on"><span data-icon="sound"></span></button>
 
   <div class="sideControls">
     <button class="iconBtn" id="zoomIn" aria-label="Zoom in" title="Zoom in"><span data-icon="plus"></span></button>
@@ -451,6 +469,7 @@
     <input type="text" id="dayTitle" maxlength="48" placeholder="e.g. Org Fair & Opening">
     <button class="lmBtn" id="exportBtn"><span data-icon="download"></span> Download assignments.json</button>
     <button class="lmBtn" id="importBtn"><span data-icon="upload"></span> Import a saved file</button>
+    <button class="lmBtn" id="copyDayBtn"><span data-icon="copy"></span> Copy Day 1 positions to Day 2</button>
     <button class="lmBtn danger" id="resetDayBtn"><span data-icon="trash"></span> Clear this day</button>
     <button class="lmBtn" id="signOutBtn"><span data-icon="unlock"></span> Sign out</button>
     <p class="lmNote" id="lmNote">Confirmed changes are shared with everyone. The view refreshes every 15 seconds.</p>
@@ -461,7 +480,7 @@
   <div class="intro" id="intro" role="dialog" aria-label="Welcome letter">
     <div class="envelope" id="envelope" title="Open the letter">
       <div class="envBack"></div>
-      <div class="paper" id="paper" inert>
+      <div class="paper" id="paper" tabindex="-1" role="document" inert>
         <i class="tape l"></i><i class="tape r"></i>
         <p class="date">Mendoza Hall · <span id="letterDay">Day 1</span></p>
         <p class="hello">Dear explorer,</p>
@@ -469,6 +488,7 @@
         <p>Drag to look around, tap <b>Forward</b> to walk, and open the <b>map</b> if you ever get lost.</p>
         <p class="sign">See you in the hallway,<span>— CSSP LSC</span></p>
         <p class="ps">P.S. A table or door might hold a note for you. And if a cat wanders by, take a moment to make a friend.</p>
+        <p class="soundHint">“Let’s go” enables gentle button sounds. Mute anytime with the sound button.</p>
         <div class="foot">
           <label><input type="checkbox" id="introHide"> Don't show again</label>
           <button class="stampBtn" id="introGo">Let's go <span data-icon="right"></span></button>
@@ -482,6 +502,7 @@
 
   </div>
 
+  <div id="tapEffects" aria-hidden="true"></div>
   <canvas id="confetti"></canvas>
   <div class="toast" id="toast"></div>
   <div class="fade" id="fade"><span data-icon="stairsUp"></span> Taking the stairs…</div>

@@ -37,7 +37,11 @@ for(const initial of ['empty','original-four-tables'])test(`${initial} database:
     rejectSave=true;await page.locator('#fOrg').fill('Unsaved Change');await page.locator('#bpSave').click();await expect(page.locator('#toast')).toContainText('Not saved');await expect(page.locator('#fOrg')).toHaveValue('Unsaved Change');expect((await db.query('SELECT org FROM booth_assignments')).rows[0].org).toBe('Council Society');
     await expect(page.locator('#bpSave')).toBeEnabled();conflict=true;await page.locator('#bpSave').click();await expect(page.locator('#toast')).toContainText('Someone changed the plan');await expect(page.locator('#fOrg')).toHaveValue('Unsaved Change');
     await expect(page.locator('#bpSave')).toBeEnabled();await page.locator('#bpSave').click();await expect(page.locator('#toast')).toHaveText('Saved booth 102-R1');
-    await page.locator('#pClose').click();await page.locator('#lscBtn').click();await page.locator('#signOutBtn').click();await expect(page.locator('body')).not.toHaveClass(/lsc/);
+    await page.locator('#pClose').click();await page.locator('#lscBtn').click();
+    page.once('dialog',dialog=>dialog.accept());await page.locator('#copyDayBtn').click();await expect(page.locator('#toast')).toContainText('Copied Day 1');
+    expect((await db.query("SELECT org,notes FROM booth_assignments WHERE day=2 AND booth_id='102-R1'")).rows[0]).toMatchObject({org:'Unsaved Change',notes:'PRIVATE NOTES'});
+    expect((await db.query("SELECT org FROM booth_assignments WHERE day=1 AND booth_id='102-R1'")).rows[0].org).toBe('Unsaved Change');
+    await page.locator('#signOutBtn').click();await expect(page.locator('body')).not.toHaveClass(/lsc/);
     expect(await page.locator('#fNotes').inputValue()).toBe('');expect(await page.evaluate(()=>JSON.stringify(localStorage))).not.toContain('PRIVATE NOTES');
     await expect.poll(async()=>(await db.query('SELECT * FROM organizer_sessions')).rows.length).toBe(0);
     await openBooth(page);await expect(page.locator('#pView')).toContainText('Unsaved Change');await expect(page.locator('#boothEdit')).toBeHidden();
@@ -113,9 +117,41 @@ for(const reducedMotion of ['reduce','no-preference'])test(`envelope opens one c
   await expect(page.locator('#seal')).toHaveAttribute('aria-expanded','false');
   await page.locator('#seal').click();await expect(page.locator('#intro')).toHaveClass(/reading/);await expect(page.locator('#paper')).toBeVisible();
   await expect(page.locator('#paper')).not.toHaveAttribute('inert','');await expect(page.locator('#seal')).toHaveAttribute('aria-expanded','true');
-  await expect(page.locator('#introGo')).toBeFocused();await page.locator('#introGo').click();await expect(page.locator('#intro')).not.toHaveClass(/show/);
+  await expect(page.locator('#paper')).toBeFocused();expect(await page.locator('#paper').evaluate(e=>e.scrollTop)).toBe(0);await page.locator('#introGo').click();await expect(page.locator('#intro')).not.toHaveClass(/show/);
   await page.setViewportSize({width:390,height:844});await page.locator('#brandTitle').click();await expect(page.locator('#seal')).toHaveAttribute('aria-expanded','false');
   await page.locator('#seal').click();await expect(page.locator('#intro')).toHaveClass(/reading/);await page.waitForTimeout(750);
   const box=await page.locator('#paper').boundingBox();expect(box.x).toBeGreaterThanOrEqual(0);expect(box.y).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(390);expect(box.y+box.height).toBeLessThanOrEqual(844);
   await page.screenshot({path:`.arena/letter-${reducedMotion}.png`});await page.keyboard.press('Escape');await expect(page.locator('#intro')).not.toHaveClass(/show/);
+});
+
+test('mobile readability, gesture zoom protection, opt-in sounds and restrained tap effects',async({browser})=>{
+  const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,reducedMotion:'no-preference'}),page=await context.newPage();
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.addInitScript(()=>{
+    window.audioEvents={created:0,tones:0};const Native=window.AudioContext||window.webkitAudioContext;
+    if(Native)window.AudioContext=class extends Native{constructor(...args){super(...args);window.audioEvents.created++;}createOscillator(){const osc=super.createOscillator(),start=osc.start.bind(osc);osc.start=(...args)=>{window.audioEvents.tones++;return start(...args);};return osc;}};
+  });
+  await page.goto('/');await expect(page.locator('#intro')).toHaveClass(/show/,{timeout:15000});
+  expect(await page.evaluate(()=>window.audioEvents.created)).toBe(0);
+  await page.locator('#seal').tap();await expect(page.locator('#intro')).toHaveClass(/reading/);await page.waitForTimeout(800);
+  expect(await page.locator('#paper').evaluate(e=>getComputedStyle(e).fontFamily)).toMatch(/Arial/);expect(await page.locator('#paper').evaluate(e=>parseFloat(getComputedStyle(e).fontSize))).toBeGreaterThanOrEqual(17);
+  await page.locator('#introGo').tap();await expect(page.locator('body')).toHaveAttribute('data-sound','on');expect(await page.evaluate(()=>window.audioEvents.tones)).toBeGreaterThanOrEqual(3);
+  await page.locator('#soundBtn').tap();await expect(page.locator('#soundBtn')).toHaveAttribute('aria-pressed','false');
+  const tones=await page.evaluate(()=>window.audioEvents.tones);await page.locator('#mapBtn').tap();await page.locator('#mapClose').tap();expect(await page.evaluate(()=>window.audioEvents.tones)).toBe(tones);
+  await page.locator('#soundBtn').tap();await expect(page.locator('#soundBtn')).toHaveAttribute('aria-pressed','true');
+  // Prevent double-tap control zoom without disabling accessibility pinch zoom globally.
+  for(const selector of ['#viewport','#viewport canvas','#mapSvg','.navBtn'])expect(await page.locator(selector).first().evaluate(e=>getComputedStyle(e).touchAction)).toBe('none');
+  for(const selector of ['#roomSelect','#lscPass','#dayTitle','#fOrg','#fStatus'])expect(await page.locator(selector).evaluate(e=>parseFloat(getComputedStyle(e).fontSize))).toBeGreaterThanOrEqual(16);
+  expect(await page.locator('meta[name=viewport]').getAttribute('content')).not.toMatch(/user-scalable=no|maximum-scale=1/);
+  const cdp=await context.newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:130,y:330},{x:240,y:390}]});
+  await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:95,y:300},{x:285,y:420}]});
+  await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+  expect(await page.evaluate(()=>visualViewport.scale)).toBe(1);
+  const forward=page.getByRole('button',{name:'Forward',exact:true});await forward.tap();await forward.tap();expect(await page.evaluate(()=>visualViewport.scale)).toBe(1);
+  // Real taps get feedback without changing page scale.
+  await page.locator('#mapBtn').tap();await expect(page.locator('#tapEffects .tapBloom')).not.toHaveCount(0);await page.locator('#mapClose').tap();
+  await page.emulateMedia({reducedMotion:'reduce'});await page.reload();await page.locator('#brandTitle').tap();await page.locator('#seal').tap();await page.locator('#introGo').tap();
+  await page.waitForTimeout(700);await page.locator('#mapBtn').tap();await expect(page.locator('#tapEffects .tapBloom')).toHaveCount(0);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(390);expect(errors).toEqual([]);await context.close();
 });

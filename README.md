@@ -100,6 +100,19 @@ All interface pictograms use the original local SVG artwork in `lib/icons.js`, i
 
 Behavior is independently tested in `tests/cats.test.js`; the browser suite checks companion controls, map keyboard access, mobile layout and the existing organizer flows.
 
+## Readability, touch navigation and sounds
+
+- Booth signs are taller, high-resolution, high-contrast panels. Long organization names wrap instead of shrinking to tiny single-line text. Door reservations use plain Arial, larger paper, full word-wrapped notes and unlit materials for consistent contrast. Tap a sign or door for full-size screen text.
+- The welcome letter uses plain sans-serif type, larger spacing and a clean background. It opens at the beginning and scrolls when necessary.
+- Hallway/navigation controls suppress accidental double-tap/pinch page zoom. Map pinch still zooms the map. Mobile inputs and the destination selector use at least 16px text to avoid iOS focus zoom. Browser accessibility zoom is not globally disabled.
+- “Let’s go” enables quiet synthesized button tones after a user gesture. The always-accessible sound button toggles them; a saved mute preference is respected. No sound files, microphone access or autoplay are used. Subtle tap blooms are disabled for reduced-motion users and never intercept touches.
+
+### Copy Day 1 assignments to Day 2
+
+After deploying, sign in using the lock button and select **Copy Day 1 positions to Day 2** in the organizer tools. Download a backup first, then confirm the replacement. It copies all booth positions (including statuses, colors and private notes) and room reservations, replacing only Day 2 assignments. Both day titles, Day 1 and Day 3 remain unchanged. The interface switches to Day 2 only after the server confirms success.
+
+The copy runs server-side at `POST /api/days/2/copy` with `{ "source": "1" }`, requires organizer authorization, same-origin protection and a current `If-Match` revision, and uses one locked transaction. Public views/cache never gain private notes. Local-demo mode copies only its browser-local plan. Adding this feature does **not** by itself copy any live production data.
+
 ## Saving, sync and privacy
 
 - **Confirmed writes only:** labels and assignments change after API success; failed writes retain the form for review/retry. Failed saves never display a false success or celebration.

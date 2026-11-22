@@ -69,6 +69,32 @@ test('import validation is atomic and valid import replaces all days',async()=>{
   assert.equal((await call('POST','import',blankState(),{rev:0})).status,409);
   assert.equal((await call('GET','state')).body.days['3'].booths['DEAN-G1'].org,'Council');
 });
+test('copy Day 1 positions to Day 2 is atomic, private, revision-guarded and preserves titles/other days',async()=>{
+  const initial=blankState();initial.days['1'].title='Opening';initial.days['2'].title='Second day';
+  initial.days['1'].booths['102-R1']={org:'First Society',notes:'PRIVATE COPY',color:'#EAB308'};
+  initial.days['1'].booths['214–215-G1']={org:'Upstairs Society',rep:'Organizer'};
+  initial.days['1'].rooms['105']={reservedFor:'Public workshop',note:'10 AM',paper:'#BDEBC8'};
+  initial.days['2'].booths['103-G1']={org:'Replaced'};initial.days['2'].rooms['110']={reservedFor:'Replaced room'};
+  initial.days['3'].booths['DEAN-G1']={org:'Untouched',notes:'THIRD DAY'};
+  let r=await call('POST','import',initial);assert.equal(r.status,200);revision=r.body.revision;const before=structuredClone(r.body);
+  assert.equal((await call('POST','days/2/copy',{source:'1'},{auth:false})).status,401);
+  assert.equal((await call('POST','days/2/copy',{source:'1'},{origin:'https://evil.example'})).status,403);
+  for(const [path,payload] of [['days/2/copy',{source:'2'}],['days/4/copy',{source:'1'}],['days/2/copy',{source:'invalid'}],['days/2/copy',{}]])assert.equal((await call('POST',path,payload)).status,400);
+  assert.equal((await call('POST','days/2/copy',{source:'1'},{rev:0})).status,409);
+  assert.deepEqual((await call('GET','state')).body,before);
+  await db.exec(`CREATE FUNCTION reject_test_copy() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.day=2 THEN RAISE EXCEPTION 'test copy failure'; END IF; RETURN NEW; END $$;
+    CREATE TRIGGER reject_test_copy BEFORE INSERT ON public.booth_assignments FOR EACH ROW EXECUTE FUNCTION reject_test_copy();`);
+  assert.equal((await call('POST','days/2/copy',{source:'1'})).status,500);
+  assert.deepEqual((await call('GET','state')).body,before); // Both deletions and revision roll back.
+  await db.exec('DROP TRIGGER reject_test_copy ON public.booth_assignments;DROP FUNCTION reject_test_copy();');
+  r=await call('POST','days/2/copy',{source:'1'});assert.equal(r.status,200,JSON.stringify(r.body));revision=r.body.revision;
+  assert.equal(revision,before.revision+1);assert.deepEqual(r.body.days['2'].booths,before.days['1'].booths);assert.deepEqual(r.body.days['2'].rooms,before.days['1'].rooms);
+  assert.equal(r.body.days['2'].title,'Second day');assert.deepEqual(r.body.days['1'],before.days['1']);assert.deepEqual(r.body.days['3'],before.days['3']);
+  const pub=(await call('GET','state',undefined,{auth:false})).body;assert.equal('notes' in pub.days['2'].booths['102-R1'],false);
+  // A second copy replaces rather than duplicates positions and updates one revision.
+  r=await call('POST','days/2/copy',{source:'1'});assert.equal(r.status,200);revision=r.body.revision;assert.equal(Object.keys(r.body.days['2'].booths).length,2);
+  assert.equal((await db.query("SELECT notes FROM public.booth_assignments WHERE day=2 AND booth_id='102-R1'")).rows[0].notes,'PRIVATE COPY');
+});
 test('logout revokes session on the server',async()=>{
   assert.equal((await call('POST','logout')).status,200);assert.equal((await call('GET','session')).status,401);
 });

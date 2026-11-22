@@ -89,11 +89,13 @@ The connection indicator clearly says **LOCAL DEMO — this browser only**. The 
 
 All interface pictograms use the original local SVG artwork in `lib/icons.js`, including map cat markers. `build.mjs` resolves static icon placeholders at build time; runtime labels use SVG elements and text nodes, not HTML assembled from user data. Cat portraits and 3D coats share the seven built-in definitions.
 
-- Open the paw button (or press **C**), choose a portrait, or choose a cat in **Go to…**. Map cat markers also support Enter/Space.
-- **Walk to** brings you within greeting distance, using the stairs when necessary. **Call over** makes a nearby cat approach you.
-- **Pet gently** triggers a head lean, closed eyes, tail reaction and a floating purr. Proximity and a short cooldown prevent remote/spammed pets.
-- **Walk with me** lets one cat follow along the current floor; stop from its card or the companion pill. Cats stay behind when you take the stairs.
-- **Play with yarn** places a 3D yarn ball. Tap the hallway floor to roll it within six metres; the cat chases, pounces and bats it. Select **Put yarn away** to finish, or let the cat rest.
+- Open the paw button (or press **C**) for a compact action bar. **Meet the cats** expands portraits and friendship details; selecting a cat or taking an action folds those details away. Cats are also available in **Go to…** and through Enter/Space on map markers.
+- The ginger cat **Pipoy** and grey cat **Graham** carry quiet remembrance notes in their profiles.
+- **Walk over** brings you within greeting distance, using the stairs when necessary. **Call** makes a nearby cat approach you.
+- **Pet** triggers a head lean, closed eyes, tail reaction and a floating purr. Proximity and a short cooldown prevent remote/spammed pets.
+- **Follow** lets one cat follow along the current floor; stop from its card or the companion pill. Cats stay behind when you take the stairs.
+- **Play** places a 3D yarn ball. Tap the hallway floor to roll it within six metres; the cat chases, pounces and bats it. Select **Pack yarn** to finish, or let the cat rest.
+- Calling, petting, resting and playing briefly aim the camera toward the cat. Dragging or keyboard movement takes control back immediately.
 - Friendship and pet counts are **in-memory for this visit only**. These public interactions never write to Neon, change booth assignments or require organizer login.
 
 Behavior is independently tested in `tests/cats.test.js`; the browser suite checks companion controls, map keyboard access, mobile layout and the existing organizer flows.

@@ -83,24 +83,39 @@ test('original SVG artwork and companions: call, pet, follow, yarn, rest, map an
   expect(await page.locator('[data-icon]').count()).toBe(0);
   expect(await page.locator('svg[data-art]').count()).toBeGreaterThan(20);
   expect(await page.locator('body').innerText()).not.toMatch(/[\u{1F000}-\u{1FAFF}\u2600-\u27BF]/u);
-  await page.locator('#catsBtn').click();await expect(page.locator('#catPanel')).toBeVisible();await expect(page.locator('#catName')).toHaveText('Mingming');
+  await page.locator('#catsBtn').click();await expect(page.locator('#catPanel')).toBeVisible();await expect(page.locator('#catName')).toHaveText('Pipoy');await expect(page.locator('#catMemorial')).toHaveText('In loving memory of Pipoy.');
+  await page.locator('#catDetailsToggle').click();await page.locator('#catRoster [data-cat="2"]').click();await expect(page.locator('#catName')).toHaveText('Graham');await expect(page.locator('#catMemorial')).toHaveText('In loving memory of Graham.');await page.locator('#catDetailsToggle').click();await page.locator('#catRoster [data-cat="0"]').click();
   await expect(page.locator('#catRoster button')).toHaveCount(7);await expect(page.locator('#catPet')).toBeDisabled();
   await page.locator('#catCall').click();await expect(page.locator('#catMood')).toHaveText('Coming to say hello');await expect(page.locator('#catPet')).toBeEnabled({timeout:15000});
   await page.locator('#catPet').click();await expect(page.locator('#catPetCount')).toHaveText('1 pet');await expect(page.locator('#catPanel')).toHaveAttribute('data-mode','petting');await expect(page.locator('#catPet')).toBeDisabled();
   await page.locator('#catVisit').click();await page.waitForTimeout(2600);await expect(page.locator('#catPet')).toBeEnabled({timeout:10000});
-  await page.locator('#catFollow').click();await expect(page.locator('#companionPill')).toBeVisible();await expect(page.locator('#catFollow')).toHaveAttribute('aria-pressed','true');
-  await page.locator('#catClose').click();await page.evaluate(()=>document.activeElement.blur());await page.keyboard.down('w');await page.waitForTimeout(1500);await page.keyboard.up('w');
+  await page.locator('#catFollow').click();await expect(page.locator('#companionPill')).toBeHidden();await expect(page.locator('#catFollow')).toHaveAttribute('aria-pressed','true');
+  await page.locator('#catClose').click();await expect(page.locator('#companionPill')).toBeVisible();await page.evaluate(()=>document.activeElement.blur());await page.keyboard.down('w');await page.waitForTimeout(1500);await page.keyboard.up('w');
   await page.locator('#catsBtn').click();await expect(page.locator('#catFollow')).toHaveAttribute('aria-pressed','true');await expect(page.locator('#catPet')).toBeEnabled({timeout:15000});
-  await page.locator('#catPlay').click();await expect(page.locator('#catPanel')).toHaveAttribute('data-mode','playing');await expect(page.locator('#catPlay')).toContainText('Put yarn away');await expect(page.locator('#companionPill')).toBeHidden();
-  await page.locator('#catPlay').click();await expect(page.locator('#catPlay')).toContainText('Play with yarn');
-  await page.locator('#catCall').click();await expect(page.locator('#catRest')).toBeEnabled({timeout:15000});await page.locator('#catRest').click();await expect(page.locator('#catPanel')).toHaveAttribute('data-mode','resting');
+  await page.locator('#catPlay').click();await expect(page.locator('#catPanel')).toHaveAttribute('data-mode','playing');await expect(page.locator('#catPlay')).toContainText('Pack yarn');await expect(page.locator('#companionPill')).toBeHidden();
+  await page.locator('#catPlay').click();await expect(page.locator('#catPlay')).toContainText('Play');
+  await page.locator('#catCall').click();await expect(page.locator('#catRest')).toBeEnabled({timeout:15000});await page.locator('#catDetailsToggle').click();await page.locator('#catRest').click();await expect(page.locator('#catPanel')).toHaveAttribute('data-mode','resting');
   // The public jump menu and keyboard-operable map both find cats without organizer login.
   await page.locator('#catClose').click();await page.locator('#roomSelect').selectOption('cat:6');await expect(page.locator('#catName')).toHaveText('Mochi');await expect(page.locator('#nearRoom')).toContainText('2F',{timeout:15000});
   await page.locator('#mapBtn').click();await expect(page.locator('#catPanel')).toBeHidden();await expect(page.locator('[data-type=cat]')).toHaveCount(1);
   await page.locator('[data-type=cat]').focus();await page.keyboard.press('Enter');await expect(page.locator('#catPanel')).toBeVisible();await expect(page.locator('#catName')).toHaveText('Mochi');
   await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(390);
-  await expect(page.locator('#catPet')).toBeVisible();await expect(page.locator('#catRest')).toBeVisible();
-  const box=await page.locator('#catPanel').boundingBox();expect(box.x).toBeGreaterThanOrEqual(0);expect(box.y).toBeGreaterThan(120);expect(box.x+box.width).toBeLessThanOrEqual(390);expect(box.y+box.height).toBeLessThan(844);
+  await expect(page.locator('#catPet')).toBeVisible();await expect(page.locator('#catRest')).toBeHidden();await expect(page.locator('#catDetailsToggle')).toHaveAttribute('aria-expanded','false');
+  const box=await page.locator('#catPanel').boundingBox();expect(box.x).toBeGreaterThanOrEqual(0);expect(box.y).toBeGreaterThan(400);expect(box.height).toBeLessThan(250);expect(box.x+box.width).toBeLessThanOrEqual(390);expect(box.y+box.height).toBeLessThan(844);
   await page.screenshot({path:'.arena/companions-mobile.png'});
   await page.keyboard.press('Escape');await expect(page.locator('#catPanel')).toBeHidden();expect(errors).toEqual([]);
+});
+
+for(const reducedMotion of ['reduce','no-preference'])test(`envelope opens one continuous letter, ${reducedMotion}`,async({page})=>{
+  await page.emulateMedia({reducedMotion});
+  await page.goto('/');await expect(page.locator('#loader')).toHaveClass(/hide/);await expect(page.locator('#intro')).toHaveClass(/show/,{timeout:15000});
+  await expect(page.locator('#envelope #paper')).toHaveCount(1);await expect(page.locator('#paper')).not.toBeVisible();
+  await expect(page.locator('#seal')).toHaveAttribute('aria-expanded','false');
+  await page.locator('#seal').click();await expect(page.locator('#intro')).toHaveClass(/reading/);await expect(page.locator('#paper')).toBeVisible();
+  await expect(page.locator('#paper')).not.toHaveAttribute('inert','');await expect(page.locator('#seal')).toHaveAttribute('aria-expanded','true');
+  await expect(page.locator('#introGo')).toBeFocused();await page.locator('#introGo').click();await expect(page.locator('#intro')).not.toHaveClass(/show/);
+  await page.setViewportSize({width:390,height:844});await page.locator('#brandTitle').click();await expect(page.locator('#seal')).toHaveAttribute('aria-expanded','false');
+  await page.locator('#seal').click();await expect(page.locator('#intro')).toHaveClass(/reading/);await page.waitForTimeout(750);
+  const box=await page.locator('#paper').boundingBox();expect(box.x).toBeGreaterThanOrEqual(0);expect(box.y).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(390);expect(box.y+box.height).toBeLessThanOrEqual(844);
+  await page.screenshot({path:`.arena/letter-${reducedMotion}.png`});await page.keyboard.press('Escape');await expect(page.locator('#intro')).not.toHaveClass(/show/);
 });

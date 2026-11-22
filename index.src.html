@@ -188,28 +188,30 @@
   .intro{position:absolute;inset:0;z-index:45;display:none;align-items:center;justify-content:center;flex-direction:column;gap:22px;background:radial-gradient(ellipse at center,rgba(46,32,20,.5),rgba(10,8,6,.8));padding:16px;}
   .intro.show{display:flex;animation:fadeIn .45s ease;}
   @keyframes fadeIn{from{opacity:0;}}
-  .envelope{position:relative;width:310px;height:200px;cursor:pointer;transition:transform .6s ease,opacity .45s ease;filter:drop-shadow(0 20px 30px rgba(0,0,0,.5));animation:bob 2.8s ease-in-out infinite;perspective:900px;}
-  @keyframes bob{50%{transform:translateY(-7px) rotate(-1deg);}}
-  .envBack{position:absolute;inset:0;background:#cdb282;border-radius:6px;}
-  .envPeek{position:absolute;left:16px;right:16px;top:12px;height:168px;background:#fbf6ea repeating-linear-gradient(transparent 0 15px,rgba(70,110,170,.15) 15px 16px);border-radius:3px;transition:transform .6s cubic-bezier(.2,.8,.2,1) .2s;}
-  .envFront{position:absolute;inset:0;background:linear-gradient(160deg,#ead7af,#dcc293);clip-path:polygon(0 0,50% 56%,100% 0,100% 100%,0 100%);border-radius:6px;}
-  .envFront:after{content:"to: our explorer";position:absolute;right:26px;bottom:20px;font-family:var(--hand);color:#6b4b2a;font-size:15px;opacity:.75;}
-  .envFlap{position:absolute;left:0;right:0;top:0;height:58%;background:linear-gradient(180deg,#e4cd9f,#d6bb88);clip-path:polygon(0 0,100% 0,50% 100%);transform-origin:top;transition:transform .5s ease;z-index:3;}
-  .seal{position:absolute;left:50%;top:56%;transform:translate(-50%,-50%);z-index:4;width:64px;height:64px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#b8404e,#6e1a28 72%);color:#f3d27a;font:800 15px Georgia,serif;letter-spacing:.06em;border:none;box-shadow:0 4px 10px rgba(0,0,0,.35),inset 0 0 0 5px rgba(255,255,255,.07);cursor:pointer;transition:transform .3s;}
-  .seal:before{content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid rgba(232,200,106,.55);animation:ring 1.8s ease-out infinite;}
-  @keyframes ring{from{transform:scale(.9);opacity:1;}to{transform:scale(1.35);opacity:0;}}
-  .introHint{margin:0;color:#efe2c4;font-size:14px;letter-spacing:.02em;transition:opacity .3s;}
+  /* One continuous sheet lives inside a layered, closed envelope. */
+  .envelope{position:relative;width:min(310px,86vw);height:200px;cursor:pointer;perspective:1000px;isolation:isolate;filter:drop-shadow(0 20px 30px #0005);}
+  .envBack{position:absolute;inset:0;z-index:1;background:linear-gradient(#AF8B54,#CCAB76);border:1px solid #B08D58;border-radius:6px;}
+  .envFront{position:absolute;inset:0;z-index:3;pointer-events:none;border-radius:5px;overflow:hidden;}
+  .envFront:before{content:"";position:absolute;inset:0;background:linear-gradient(135deg,#E9D3AA,#D6B886);clip-path:polygon(0 0,50% 53%,100% 0,100% 100%,0 100%);}
+  .envFront:after{content:"";position:absolute;inset:0;padding:153px 24px 0 0;text-align:right;font:15px var(--hand);color:#725535;background:linear-gradient(150deg,#EDDAB8,#DFC396);clip-path:polygon(0 100%,50% 46%,100% 100%);filter:drop-shadow(0 -1px 1px #8D6A3F55);}
+  .envAddress{position:absolute;z-index:1;right:24px;bottom:23px;font:15px var(--hand);color:#725535;}
+  .envFlap{position:absolute;left:0;right:0;top:0;height:55%;z-index:4;transform-origin:50% 0;transform-style:preserve-3d;transition:transform .55s ease;pointer-events:none;}
+  .envFlap:before,.envFlap:after{content:"";position:absolute;inset:0;clip-path:polygon(0 0,100% 0,50% 100%);backface-visibility:hidden;background:linear-gradient(#ECD7B0,#D3B17A);}
+  .envFlap:after{transform:rotateX(180deg);background:linear-gradient(#B7945E,#D3B17A);}
+  .seal{position:absolute;left:50%;top:53%;transform:translate(-50%,-50%);z-index:5;width:64px;height:64px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#b8404e,#6e1a28 72%);color:#f3d27a;font:800 15px Georgia,serif;letter-spacing:.06em;border:none;box-shadow:0 4px 10px #0005,inset 0 0 0 5px #FFFFFF12;cursor:pointer;transition:transform .25s,opacity .25s;}
+  .seal:before{content:"";position:absolute;inset:5px;border-radius:50%;border:1px solid #E8C86A66;}
+  .introHint{margin:0;color:#efe2c4;font-size:14px;letter-spacing:.02em;transition:opacity .3s;text-align:center;}
   .introHint b{color:var(--gold);}
-  .intro.opening .envelope{animation:none;}
-  .intro.opening .envFlap{transform:rotateX(180deg);z-index:0;}
-  .intro.opening .seal{transform:translate(-50%,-50%) scale(0);}
-  .intro.opening .envPeek{transform:translateY(-78px);}
-  .intro.opening .introHint{opacity:0;}
-  .intro.reading .envelope{transform:translateY(160px) scale(.8);opacity:0;pointer-events:none;}
-  .paper{position:absolute;width:min(430px,92vw);max-height:88vh;overflow:auto;color:#2b2620;font-family:Georgia,"Times New Roman",serif;font-size:15px;line-height:28px;
+  .paper{position:absolute;z-index:2;left:50%;top:12px;width:min(430px,92vw);max-height:82dvh;overflow:auto;color:#2b2620;font-family:Georgia,"Times New Roman",serif;font-size:15px;line-height:28px;
     background:linear-gradient(90deg,transparent 30px,rgba(200,70,70,.28) 30px 31.5px,transparent 31.5px),repeating-linear-gradient(transparent 0 27px,rgba(70,110,170,.15) 27px 28px),#fbf6ea;
-    background-position:0 10px;padding:30px 28px 18px 44px;border-radius:3px;box-shadow:0 30px 70px rgba(0,0,0,.55);transform:translateY(80px) scale(.45) rotate(-3deg);opacity:0;pointer-events:none;transition:transform .65s cubic-bezier(.2,.9,.25,1.12),opacity .35s;}
-  .intro.reading .paper{transform:rotate(-.7deg);opacity:1;pointer-events:auto;}
+    background-position:0 10px;padding:30px 28px 18px 44px;border-radius:3px;box-shadow:0 4px 8px #0002;transform:translateX(-50%) scale(.64);transform-origin:50% 0;clip-path:inset(0 0 calc(100% - 270px) 0);pointer-events:none;visibility:hidden;}
+  .intro.opening .envFlap{transform:rotateX(-180deg);z-index:0;animation:unseal .55s ease;}
+  @keyframes unseal{0%{transform:rotateX(0);z-index:4;}49%{z-index:4;}50%{z-index:0;}100%{transform:rotateX(-180deg);z-index:0;}}
+  .intro.opening .seal{transform:translate(-50%,-50%) scale(.6);opacity:0;pointer-events:none;}
+  .intro.opening .introHint{opacity:0;}
+  .intro.opening .paper{visibility:visible;top:-310px;clip-path:inset(0);transition:top .65s cubic-bezier(.4,0,.2,1) .55s;}
+  .intro.reading .envBack,.intro.reading .envFront,.intro.reading .envFlap{opacity:0;translate:0 180px;transition:opacity .4s,translate .6s;}
+  .intro.reading .paper{z-index:6;top:50%;transform:translate(-50%,-50%) scale(1);pointer-events:auto;box-shadow:0 30px 70px #0007;transition:top .65s ease,transform .65s ease;}
   .tape{position:absolute;top:-2px;width:96px;height:24px;background:rgba(236,224,186,.86);box-shadow:0 1px 3px rgba(0,0,0,.15);}
   .tape.l{left:18px;transform:rotate(-8deg);} .tape.r{right:18px;transform:rotate(7deg);}
   .paper .date{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#8a7d66;text-align:right;margin:0;}
@@ -275,6 +277,20 @@
   .catBubble{display:none;position:absolute;z-index:15;pointer-events:none;align-items:center;gap:5px;border-radius:99px;background:#FBF4E4;color:#913A4B;border:1px solid #DFC9A9;box-shadow:0 5px 20px #0003;padding:6px 10px;transform:translate(-50%,-100%);font:italic 12px Georgia,serif;}.catBubble.show{display:flex;}.catBubble>.uiIcon{width:15px;height:15px;}
   .mapCatMarker{cursor:pointer;outline:none;}.mapCatMarker:focus .mapCatHalo{stroke:#6E1A28;stroke-width:.22;}.mapCatMarker:hover .mapCatHalo{fill:#FFF3CB;}
   @media(max-width:700px){.catPanel{left:10px;bottom:82px;max-width:calc(100vw - 20px);width:350px;max-height:calc(100dvh - 216px);padding:16px;border-radius:18px;}.catPanel h2{font-size:26px;}.catIntro{margin-bottom:12px;}.catProfile>#catPortrait{width:68px;height:68px;}.catMoodRow{margin-top:12px;padding-top:10px;}.catReaction{margin:10px 0 6px;}.catRoster{margin-bottom:6px;}.companionPill{bottom:74px;max-width:95vw;}.catVisit{min-height:40px;}}
+
+  /* Small by default; profiles are an explicit, reversible expansion. */
+  .catPanel{left:14px;bottom:82px;width:390px;max-height:min(70dvh,560px);padding:12px 14px;border-radius:16px;}
+  .catPanelHead{align-items:center;gap:8px;margin-bottom:7px;}.catPanelHead>div{margin-right:auto;}.catPanel h2{font:600 10px/1.2 system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#90754D;}.catEyebrow,.catIntro{display:none;}
+  .catDetailsToggle{background:none;border:0;color:#7A2431;text-decoration:underline;text-underline-offset:3px;font-size:11px;cursor:pointer;padding:8px 2px;}.catClose{width:30px;height:30px;}
+  .catProfile{gap:9px;}.catProfile>#catPortrait{width:38px;height:38px;}.catNameRow h3{font-size:21px;}.catNameRow>span{display:none;}.catDistance{font-size:10px;}.catProfileText{flex:1;}
+  .catRoster,#catTrait,.catBond,.catMoodRow,.catPanelFoot{display:none;}
+  .catMemorial{font:italic 11px/1.4 Georgia,serif;color:#8A7045;margin:3px 0;}.catMemorial[hidden]{display:none;}
+  .catVisit{position:absolute;top:54px;right:14px;width:136px;min-height:34px;padding:7px 8px;font-size:10px;justify-content:center;}.catVisit .uiIcon{width:14px;height:14px;}
+  .catProfileText{padding-right:137px;}.catActions{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin-top:9px;}.catActions button{padding:8px 3px;min-height:42px;justify-content:center;gap:4px;font-size:10px;}.catActions button .uiIcon{width:15px;height:15px;}
+  .catReaction{font-size:11px;line-height:1.35;min-height:15px;margin:7px 0 0;}
+  .catPanel.details-open .catRoster{display:flex;margin-bottom:7px;}.catPanel.details-open #catTrait{display:block;}.catPanel.details-open .catBond,.catPanel.details-open .catMoodRow,.catPanel.details-open .catPanelFoot{display:flex;}.catPanel.details-open .catProfileText{padding-right:0;}.catPanel.details-open .catProfile>#catPortrait{width:55px;height:55px;}.catPanel.details-open .catVisit{position:static;width:100%;margin:8px 0 0;}.catPanel.details-open .catNameRow>span{display:inline;}
+  body.cats-open .hint,body.cats-open .companionPill{display:none;}
+  @media(max-width:700px){.catPanel{left:10px;right:10px;bottom:76px;width:auto;max-width:none;max-height:min(65dvh,530px);padding:10px 12px;}.catPanel h2{font-size:9px;}.catPanelHead{margin-bottom:4px;}.catPanel .catProfile>#catPortrait{width:34px;height:34px;}.catPanel .catVisit{top:48px;right:12px;width:126px;}.catPanel.details-open .catVisit{width:100%;}.catProfileText{padding-right:122px;}.catActions button{flex-direction:column;font-size:10px;line-height:1.15;min-height:48px;padding:5px 2px;}.catPanel.details-open .catProfile>#catPortrait{width:48px;height:48px;}.catNameRow h3{font-size:20px;}.catReaction{margin:6px 0 0;}}
 
   @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;}}
 </style>
@@ -363,13 +379,13 @@
 
   <!-- Visitor-local companion interactions, independent of organizer access. -->
   <section class="catPanel" id="catPanel" aria-labelledby="catPanelTitle" hidden>
-    <div class="catPanelHead"><div><p class="catEyebrow">THE HALLWAY REGULARS</p><h2 id="catPanelTitle">A little company.</h2></div><button id="catClose" class="catClose" aria-label="Close cat panel"><span data-icon="close"></span></button></div>
+    <div class="catPanelHead"><div><p class="catEyebrow">THE HALLWAY REGULARS</p><h2 id="catPanelTitle">A little company.</h2></div><button id="catDetailsToggle" class="catDetailsToggle" aria-expanded="false" aria-controls="catRoster catTrait catMemorial">Meet the cats</button><button id="catClose" class="catClose" aria-label="Close cat panel"><span data-icon="close"></span></button></div>
     <p class="catIntro">Seven familiar faces. One very long hallway.</p>
     <div class="catRoster" id="catRoster" role="group" aria-label="Choose a hallway cat"></div>
-    <div class="catProfile"><div id="catPortrait"></div><div class="catProfileText"><div class="catNameRow"><h3 id="catName">Mingming</h3><span id="catTemperament">Sociable</span></div><p id="catTrait"></p><p class="catDistance" id="catDistance"></p></div></div>
+    <div class="catProfile"><div id="catPortrait"></div><div class="catProfileText"><div class="catNameRow"><h3 id="catName">Pipoy</h3><span id="catTemperament">Sociable</span></div><p id="catTrait"></p><p id="catMemorial" class="catMemorial" hidden></p><p class="catDistance" id="catDistance"></p></div></div>
     <div class="catMoodRow"><span class="catMoodDot"></span><span id="catMood">A little curious</span><span id="catPetCount">0 pets</span></div>
     <div class="catBond"><label for="catBond">Getting acquainted</label><meter id="catBond" min="0" max="100" value="12" aria-label="Friendship with selected cat"></meter></div>
-    <button class="catVisit" id="catVisit"><span data-icon="footsteps"></span><span>Walk to Mingming</span><span data-icon="right"></span></button>
+    <button class="catVisit" id="catVisit"><span data-icon="footsteps"></span><span>Walk to Pipoy</span><span data-icon="right"></span></button>
     <div class="catActions" role="group" aria-label="Interact with selected cat">
       <button id="catPet"><span data-icon="hand"></span><span>Pet gently</span></button>
       <button id="catCall"><span data-icon="bell"></span><span>Call over</span></button>
@@ -445,25 +461,25 @@
   <div class="intro" id="intro" role="dialog" aria-label="Welcome letter">
     <div class="envelope" id="envelope" title="Open the letter">
       <div class="envBack"></div>
-      <div class="envPeek"></div>
-      <div class="envFront"></div>
+      <div class="paper" id="paper" inert>
+        <i class="tape l"></i><i class="tape r"></i>
+        <p class="date">Mendoza Hall · <span id="letterDay">Day 1</span></p>
+        <p class="hello">Dear explorer,</p>
+        <p>Welcome to <b>Mendoza Hall</b>, the <i>“pinakamahabang”</i> hallway! Take a slow walk with us. Peek at the rooms, find the booths, and see who's setting up where on <b>Day 1, 2 &amp; 3</b>.</p>
+        <p>Drag to look around, tap <b>Forward</b> to walk, and open the <b>map</b> if you ever get lost.</p>
+        <p class="sign">See you in the hallway,<span>— CSSP LSC</span></p>
+        <p class="ps">P.S. A table or door might hold a note for you. And if a cat wanders by, take a moment to make a friend.</p>
+        <div class="foot">
+          <label><input type="checkbox" id="introHide"> Don't show again</label>
+          <button class="stampBtn" id="introGo">Let's go <span data-icon="right"></span></button>
+        </div>
+      </div>
+      <div class="envFront"><span class="envAddress">to: our explorer</span></div>
       <div class="envFlap"></div>
-      <button class="seal" id="seal" aria-label="Open the letter">LSC</button>
+      <button class="seal" id="seal" aria-label="Open the letter" aria-controls="paper" aria-expanded="false">LSC</button>
     </div>
     <p class="introHint" id="introHint"><span data-icon="mail"></span> A letter for you. <b>Tap the seal to open.</b></p>
-    <div class="paper" id="paper">
-      <i class="tape l"></i><i class="tape r"></i>
-      <p class="date">Mendoza Hall · <span id="letterDay">Day 1</span></p>
-      <p class="hello">Dear explorer,</p>
-      <p>Welcome to <b>Mendoza Hall</b>, the <i>“pinakamahabang”</i> hallway! Take a slow walk with us. Peek at the rooms, find the booths, and see who's setting up where on <b>Day 1, 2 &amp; 3</b>.</p>
-      <p>Drag to look around, tap <b>Forward</b> to walk, and open the <b>map</b> if you ever get lost.</p>
-      <p class="sign">See you in the hallway,<span>— CSSP LSC</span></p>
-      <p class="ps">P.S. A table or door might hold a note for you. And if a cat wanders by, take a moment to make a friend.</p>
-      <div class="foot">
-        <label><input type="checkbox" id="introHide"> Don't show again</label>
-        <button class="stampBtn" id="introGo">Let's go <span data-icon="right"></span></button>
-      </div>
-    </div>
+
   </div>
 
   <canvas id="confetti"></canvas>

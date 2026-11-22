@@ -42,3 +42,9 @@ test('rest, cross-floor/proximity guards and bounded wandering',()=>{
   stopCompanion(w);tick(w,200);for(const c of w.cats){assert.ok(c.z>=bounds(c.floor).min&&c.z<=bounds(c.floor).max);assert.ok(Math.abs(c.x)<1);}
   assert.equal(actOnCat(w,99,'pet',player,bounds(1)).ok,false);
 });
+
+test('Pipoy and Graham retain ginger/grey coats and remembrance text',()=>{
+  assert.equal(CAT_DEFS[0].name,'Pipoy');assert.equal(CAT_DEFS[0].color,'#D9893B');
+  assert.equal(CAT_DEFS[2].name,'Graham');assert.equal(CAT_DEFS[2].color,'#8D8C8A');
+  for(const id of [0,2])assert.match(CAT_DEFS[id].memorial,/In loving memory/);
+});
